@@ -1,0 +1,21 @@
+[package]
+name = "eye2"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+description = "Eye of the Beholder II reverse engineering and editable asset workbench"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+png = "0.18"
+sha2 = "0.11"
+libloading = "0.8"
+iced-x86 = { version = "1", default-features = false, features = ["std", "decoder", "intel", "instr_info"] }
+eframe = { version = "=0.37.0", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+
+[profile.release]
+strip = true
+

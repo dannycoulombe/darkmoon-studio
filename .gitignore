@@ -1,0 +1,16 @@
+/target/
+/assets/
+/runtime/
+/verification/
+/tools/.venv/
+/tools/ghidra.zip
+/tools/ghidra_*/
+/tools/ghidra-project/
+/tools/*.deb
+/tools/xvfb/
+/tools/dosbox-staging*/
+/tools/dosbox-staging.tar.xz
+/analysis/decompiled/
+/tools/__pycache__/
+/preview.wav
+

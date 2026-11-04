@@ -1,0 +1,254 @@
+{
+  "project": "ScummVM",
+  "license": "GPL-3.0-or-later; see file headers and COPYING",
+  "retrieved": "2026-11-04",
+  "upstream_head_at_retrieval": "f909c9d882248fe25b4aff96ccb48b33cf2d8f42",
+  "files": [
+    {
+      "file": "screen_v2.cpp",
+      "upstream_path": "engines/kyra/graphics/screen_v2.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/graphics/screen_v2.cpp",
+      "sha256": "c70a0e1151a4d2a28c3e6f297619441895e4c385da97bea16a2ab77d93b87824"
+    },
+    {
+      "file": "COPYING",
+      "upstream_path": "COPYING",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/COPYING",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "file": "eob2_dos.h",
+      "upstream_path": "devtools/create_kyradat/resources/eob2_dos.h",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/devtools/create_kyradat/resources/eob2_dos.h",
+      "sha256": "ef22bb090f0717e0a0eb88bf57353d4c433ba4526bc056996f5b28a8743fb39c"
+    },
+    {
+      "file": "sound_pc_v1.cpp",
+      "upstream_path": "engines/kyra/sound/sound_pc_v1.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/sound/sound_pc_v1.cpp",
+      "sha256": "ac655b4fd991cb069e33bb9ce74ceb64da3b0f1a4586c3c440e12c285bc02643"
+    },
+    {
+      "file": "sequences_eob.cpp",
+      "upstream_path": "engines/kyra/sequence/sequences_eob.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/sequence/sequences_eob.cpp",
+      "sha256": "9b917b0a7666d9753ecc3ac1403a162203fa883c3c1874014d43d31f78a6a4da"
+    },
+    {
+      "file": "magic_eob.cpp",
+      "upstream_path": "engines/kyra/engine/magic_eob.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/magic_eob.cpp",
+      "sha256": "292f7f28400958df5b7157574b8cb2564fb10ecf497eb8327b55dc880fbafc95"
+    },
+    {
+      "file": "script_eob.h",
+      "upstream_path": "engines/kyra/script/script_eob.h",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/script/script_eob.h",
+      "sha256": "3239e25a29d61b72e91692fd0163bb9da884359ec851cf208fbb7cb47a8472c9"
+    },
+    {
+      "file": "eob.h",
+      "upstream_path": "engines/kyra/engine/eob.h",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/eob.h",
+      "sha256": "a02ce6b44e3297ec21db0d5bbc08858d2e025da5b4fd75922b2a792ef2a7ac1d"
+    },
+    {
+      "file": "scene_eob.cpp",
+      "upstream_path": "engines/kyra/engine/scene_eob.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/scene_eob.cpp",
+      "sha256": "786d5be6808871585a25edcb84f89dbf62294b62970edbf99c8c681850723c2c"
+    },
+    {
+      "file": "adlib.cpp",
+      "upstream_path": "engines/kyra/sound/drivers/adlib.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/sound/drivers/adlib.cpp",
+      "sha256": "90ca1f3cfac87ff3a1c12ebb144a46ff35411816f70844e6d5e08e81516f19b3"
+    },
+    {
+      "file": "resource.cpp",
+      "upstream_path": "engines/kyra/resource/resource.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/resource/resource.cpp",
+      "sha256": "d68c84bbaecd3407462fee930f3d8dcb1c05604855c6273ea6057a883511401a"
+    },
+    {
+      "file": "darkmoon.h",
+      "upstream_path": "engines/kyra/engine/darkmoon.h",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/darkmoon.h",
+      "sha256": "3665b1047ec582f47a4524c81f259d1a9d306510a887c71eeeaf70f84873c127"
+    },
+    {
+      "file": "gui_eob.cpp",
+      "upstream_path": "engines/kyra/gui/gui_eob.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/gui/gui_eob.cpp",
+      "sha256": "b5eb7b39b2ef69d5b003deda5f2baf4242084c71fd906fe12cb6e009f0ce6673"
+    },
+    {
+      "file": "kyra_rpg.cpp",
+      "upstream_path": "engines/kyra/engine/kyra_rpg.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/kyra_rpg.cpp",
+      "sha256": "8f4da681e9e710665959eee7f56a47adc1ffa837443192727ef3637fd108c685"
+    },
+    {
+      "file": "darkmoon.cpp",
+      "upstream_path": "engines/kyra/engine/darkmoon.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/darkmoon.cpp",
+      "sha256": "1d81943c375a60af7c6cc3efd3f6be978c5fd3bbbd896dded6dea7b308efb5ec"
+    },
+    {
+      "file": "COPYRIGHT",
+      "upstream_path": "COPYRIGHT",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/COPYRIGHT",
+      "sha256": "95c3a8ed18246d6a7135d7ba0aacd4df9a0957f7e1de8f58ec8e011d84557a6b"
+    },
+    {
+      "file": "items_eob.cpp",
+      "upstream_path": "engines/kyra/engine/items_eob.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/items_eob.cpp",
+      "sha256": "2355f64b809742d1759a44d6a55f5d202ca67cdde256e9c72cdddb92e90b090b"
+    },
+    {
+      "file": "eob.cpp",
+      "upstream_path": "engines/kyra/engine/eob.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/eob.cpp",
+      "sha256": "eb202bf0fb5ad1041aa589cbeda2cf9d7f93ebb4c0147ae4a16043e738008802"
+    },
+    {
+      "file": "screen_eob.h",
+      "upstream_path": "engines/kyra/graphics/screen_eob.h",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/graphics/screen_eob.h",
+      "sha256": "c07aca2235b197f5ead2917b98fdf47a75ded3fc9fdd0683e32dd2f4494465cc"
+    },
+    {
+      "file": "eob2_dos_english.h",
+      "upstream_path": "devtools/create_kyradat/resources/eob2_dos_english.h",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/devtools/create_kyradat/resources/eob2_dos_english.h",
+      "sha256": "84e2ecbcb4e9713489be817ad847844df5a27ce4148a1e10b4502a524f47358a"
+    },
+    {
+      "file": "sequences_darkmoon.cpp",
+      "upstream_path": "engines/kyra/sequence/sequences_darkmoon.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/sequence/sequences_darkmoon.cpp",
+      "sha256": "fa0e2346aa852c9752fde671a3c4ffb7860ad94ac3a032af4a5691428a02d091"
+    },
+    {
+      "file": "eobcommon.cpp",
+      "upstream_path": "engines/kyra/engine/eobcommon.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/eobcommon.cpp",
+      "sha256": "3b35b4668006f162d4836b589ba1300ca91bfd52a76e3d76c6513527da009815"
+    },
+    {
+      "file": "text_rpg.cpp",
+      "upstream_path": "engines/kyra/text/text_rpg.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/text/text_rpg.cpp",
+      "sha256": "f68bade7af86d9555399952c7193a8730343ff218ca9bbf235c2c538663daf7d"
+    },
+    {
+      "file": "timer_eob.cpp",
+      "upstream_path": "engines/kyra/engine/timer_eob.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/timer_eob.cpp",
+      "sha256": "adb733a90b32015ddd750641e8212de00324831433c5fe2d2590687410e69717"
+    },
+    {
+      "file": "gui_eob.h",
+      "upstream_path": "engines/kyra/gui/gui_eob.h",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/gui/gui_eob.h",
+      "sha256": "40d477d29b4c41e764103286e64632d13b9ca5e1c2b1cca1885287cb6afb8cdc"
+    },
+    {
+      "file": "eobcommon.h",
+      "upstream_path": "engines/kyra/engine/eobcommon.h",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/eobcommon.h",
+      "sha256": "a0390380740d81f06fc969533bb27b9e093ec446b6f112192e16ebcbc542ce83"
+    },
+    {
+      "file": "script_eob.cpp",
+      "upstream_path": "engines/kyra/script/script_eob.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/script/script_eob.cpp",
+      "sha256": "7b65905747f23acf22c231d997c363c582a39e81a40c652bd960ad5fab0a6b9c"
+    },
+    {
+      "file": "screen.cpp",
+      "upstream_path": "engines/kyra/graphics/screen.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/graphics/screen.cpp",
+      "sha256": "c0dec4a1ef8eb3f10bec85bad7d39bd0a91c805eaf4bca7b04b6a71fae139040"
+    },
+    {
+      "file": "sprites_rpg.cpp",
+      "upstream_path": "engines/kyra/engine/sprites_rpg.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/sprites_rpg.cpp",
+      "sha256": "425f01f1eb8c78a5132da822ca6b28b285a2963d4653c6f5a524a93b88f5c33b"
+    },
+    {
+      "file": "scene_rpg.cpp",
+      "upstream_path": "engines/kyra/engine/scene_rpg.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/scene_rpg.cpp",
+      "sha256": "1dd93eb1a4aae7558860830e253977702bbd2cc4baa7c3c2fbd6377fac8dba6f"
+    },
+    {
+      "file": "sprites_eob.cpp",
+      "upstream_path": "engines/kyra/engine/sprites_eob.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/engine/sprites_eob.cpp",
+      "sha256": "e01691b01b904fe6fc5548a6f2d6e6fc0ae56fdf793519a24ec6c53705cf6235"
+    },
+    {
+      "file": "staticres_eob.cpp",
+      "upstream_path": "engines/kyra/resource/staticres_eob.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/resource/staticres_eob.cpp",
+      "sha256": "52699025ef637122d6aec27c02b721742a01778d0c5e0df95b0223593d4c6565"
+    },
+    {
+      "file": "screen_eob.cpp",
+      "upstream_path": "engines/kyra/graphics/screen_eob.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/graphics/screen_eob.cpp",
+      "sha256": "eaaaf5f5e5765ce2b9049d2948f5756b18ba137306eb91f068c97a0a81ae98e2"
+    },
+    {
+      "file": "automap_eob.h",
+      "upstream_path": "engines/kyra/gui/automap_eob.h",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/gui/automap_eob.h",
+      "sha256": "95879b91870442e5e8386bbf24b76f0ba452427b8d36cb0246ce6fa6377d7b3e"
+    },
+    {
+      "file": "gui_eob_segacd.cpp",
+      "upstream_path": "engines/kyra/gui/gui_eob_segacd.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/gui/gui_eob_segacd.cpp",
+      "sha256": "ba44b74a38349914a5b9c0bd8a0be3c9c2948a4b86a25dcbac1d5901f13c381c"
+    },
+    {
+      "file": "automap_eob.cpp",
+      "upstream_path": "engines/kyra/gui/automap_eob.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/gui/automap_eob.cpp",
+      "sha256": "dbe0653608a769e674cbcdf69b7e3b456ff349bfad0c292d70357cb5fc974f86"
+    },
+    {
+      "file": "gui_eob_segacd.h",
+      "upstream_path": "engines/kyra/gui/gui_eob_segacd.h",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/gui/gui_eob_segacd.h",
+      "sha256": "ccdfcab16ed885fb18e692e95c8d84063e8f9116e8e8611f334776b5629087c0"
+    },
+    {
+      "file": "saveload_eob.cpp",
+      "upstream_path": "engines/kyra/gui/saveload_eob.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/gui/saveload_eob.cpp",
+      "sha256": "52930500197b2dfbc6b0d730eb1a0c5a40dfb8ae3795ec02315df979348805f7"
+    },
+    {
+      "file": "pcspeaker_v1.cpp",
+      "upstream_path": "engines/kyra/sound/drivers/pcspeaker_v1.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/sound/drivers/pcspeaker_v1.cpp",
+      "sha256": "600721110f8f8e5cdad4125cb4dd0fff03753d99b94dcb82f48896c15dfdb628"
+    },
+    {
+      "file": "pcspeaker_v2.cpp",
+      "upstream_path": "engines/kyra/sound/drivers/pcspeaker_v2.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/f909c9d882248fe25b4aff96ccb48b33cf2d8f42/engines/kyra/sound/drivers/pcspeaker_v2.cpp",
+      "sha256": "784198452c237f77c20139ba4e06c0800e4751abb5a0aa520e9457bdf381e87c"
+    },
+    {
+      "file": "staticres_rpg.cpp",
+      "upstream_path": "engines/kyra/resource/staticres_rpg.cpp",
+      "url": "https://github.com/scummvm/scummvm/blob/master/engines/kyra/resource/staticres_rpg.cpp",
+      "sha256": "85c0ad6de61684490d625a68a831c1fe464f382a1d3f79eeb4cddd304f5cc008"
+    }
+  ]
+}

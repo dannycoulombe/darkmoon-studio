@@ -1,0 +1,302 @@
+[
+  {
+    "name": "setRepeat",
+    "arguments": 1
+  },
+  {
+    "name": "checkRepeat",
+    "arguments": 2
+  },
+  {
+    "name": "setupProgram",
+    "arguments": 1
+  },
+  {
+    "name": "setNoteSpacing",
+    "arguments": 1
+  },
+  {
+    "name": "jump",
+    "arguments": 2
+  },
+  {
+    "name": "jumpToSubroutine",
+    "arguments": 2
+  },
+  {
+    "name": "returnFromSubroutine",
+    "arguments": 0
+  },
+  {
+    "name": "setBaseOctave",
+    "arguments": 1
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "playRest",
+    "arguments": 1
+  },
+  {
+    "name": "writeAdLib",
+    "arguments": 2
+  },
+  {
+    "name": "setupNoteAndDuration",
+    "arguments": 2
+  },
+  {
+    "name": "setBaseNote",
+    "arguments": 1
+  },
+  {
+    "name": "setupSecondaryEffect1",
+    "arguments": 5
+  },
+  {
+    "name": "stopOtherChannel",
+    "arguments": 1
+  },
+  {
+    "name": "waitForEndOfProgram",
+    "arguments": 1
+  },
+  {
+    "name": "setupInstrument",
+    "arguments": 1
+  },
+  {
+    "name": "setupPrimaryEffectSlide",
+    "arguments": 3
+  },
+  {
+    "name": "removePrimaryEffectSlide",
+    "arguments": 0
+  },
+  {
+    "name": "setBaseFreq",
+    "arguments": 1
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "setupPrimaryEffectVibrato",
+    "arguments": 4
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "setPriority",
+    "arguments": 1
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "setBeat",
+    "arguments": 1
+  },
+  {
+    "name": "waitForNextBeat",
+    "arguments": 1
+  },
+  {
+    "name": "setExtraLevel1",
+    "arguments": 1
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "setupDuration",
+    "arguments": 1
+  },
+  {
+    "name": "playNote",
+    "arguments": 1
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "setFractionalNoteSpacing",
+    "arguments": 1
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "setTempo",
+    "arguments": 1
+  },
+  {
+    "name": "removeSecondaryEffect1",
+    "arguments": 0
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "setChannelTempo",
+    "arguments": 1
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "setExtraLevel3",
+    "arguments": 1
+  },
+  {
+    "name": "setExtraLevel2",
+    "arguments": 2
+  },
+  {
+    "name": "changeExtraLevel2",
+    "arguments": 2
+  },
+  {
+    "name": "setAMDepth",
+    "arguments": 1
+  },
+  {
+    "name": "setVibratoDepth",
+    "arguments": 1
+  },
+  {
+    "name": "changeExtraLevel1",
+    "arguments": 1
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "clearChannel",
+    "arguments": 1
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "changeNoteRandomly",
+    "arguments": 2
+  },
+  {
+    "name": "removePrimaryEffectVibrato",
+    "arguments": 0
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "pitchBend",
+    "arguments": 1
+  },
+  {
+    "name": "resetToGlobalTempo",
+    "arguments": 0
+  },
+  {
+    "name": "nop",
+    "arguments": 0
+  },
+  {
+    "name": "setDurationRandomness",
+    "arguments": 1
+  },
+  {
+    "name": "changeChannelTempo",
+    "arguments": 1
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  },
+  {
+    "name": "updateCallback46",
+    "arguments": 2
+  },
+  {
+    "name": "nop",
+    "arguments": 0
+  },
+  {
+    "name": "setupRhythmSection",
+    "arguments": 9
+  },
+  {
+    "name": "playRhythmSection",
+    "arguments": 1
+  },
+  {
+    "name": "removeRhythmSection",
+    "arguments": 0
+  },
+  {
+    "name": "setRhythmLevel2",
+    "arguments": 2
+  },
+  {
+    "name": "changeRhythmLevel1",
+    "arguments": 2
+  },
+  {
+    "name": "setRhythmLevel1",
+    "arguments": 2
+  },
+  {
+    "name": "setSoundTrigger",
+    "arguments": 1
+  },
+  {
+    "name": "setTempoReset",
+    "arguments": 1
+  },
+  {
+    "name": "updateCallback56",
+    "arguments": 2
+  },
+  {
+    "name": "stopChannel",
+    "arguments": 0
+  }
+]

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Darkmoon Studio
+Comment=Visual level editor for Eye of the Beholder II
+Exec=/home/dcoulombe/dev/playground/eye2/edit-levels.sh
+Path=/home/dcoulombe/dev/playground/eye2
+Icon=/home/dcoulombe/dev/playground/eye2/resources/darkmoon-studio.svg
+Terminal=false
+Categories=Game;Development;
+StartupWMClass=eye2.darkmoon-studio
