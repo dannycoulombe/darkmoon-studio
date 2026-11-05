@@ -42,6 +42,7 @@ pub(super) struct Preview {
     pub cell: usize,
     pub facing: usize,
     panel_position: Option<Vec2>,
+    pub minimized: bool,
     pub panel_interacting: bool,
     texture: Option<TextureHandle>,
     signature: Option<Signature>,
@@ -57,6 +58,7 @@ impl Default for Preview {
             cell: 171,
             facing: 2,
             panel_position: None,
+            minimized: false,
             panel_interacting: false,
             texture: None,
             signature: None,
@@ -291,7 +293,12 @@ impl Preview {
     pub fn panel_rect(&mut self, ui: &mut egui::Ui, canvas: Rect, movable: bool) -> Rect {
         let width = (canvas.width() * 0.36).clamp(228.0, 304.0);
         // VGA pixels are taller than square pixels: retain the game's 5:6 aspect.
-        let size = Vec2::new(width, width * 144.0 / 176.0 + 111.0);
+        let height = if self.minimized {
+            CONTROL_HEIGHT + 22.0
+        } else {
+            width * 144.0 / 176.0 + 83.0
+        };
+        let size = Vec2::new(width, height);
         let bounds = canvas.shrink(12.0);
         let available = (bounds.size() - size).max(Vec2::ZERO);
         let mut position = self
@@ -301,8 +308,11 @@ impl Preview {
         let rect = Rect::from_min_size(bounds.min + position, size);
         self.panel_interacting = false;
         if movable {
-            let header =
-                Rect::from_min_size(rect.min + Vec2::splat(10.0), Vec2::new(width - 20.0, 32.0));
+            // Leave the right side to the minimize/restore and close buttons.
+            let header = Rect::from_min_size(
+                rect.min + Vec2::splat(10.0),
+                Vec2::new(width - 100.0, CONTROL_HEIGHT),
+            );
             let response = ui
                 .interact(
                     header,
@@ -358,30 +368,32 @@ impl Editor {
                                 .circle_filled(grip.center() + Vec2::new(x, y), 1.0, MUTED);
                         }
                     }
-                    ui.label(RichText::new("Cell preview").strong());
+                    let coordinates =
+                        format!("{}, {}", self.preview.cell % 32, self.preview.cell / 32);
+                    ui.label(RichText::new("Cell preview").strong())
+                        .on_hover_text(format!("Preview cell: {coordinates}"));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        small(
-                            ui,
-                            format!("{}, {}", self.preview.cell % 32, self.preview.cell / 32),
-                        );
-                    });
-                });
-                ui.horizontal(|ui| {
-                    small(ui, "Facing");
-                    for (i, name) in ["N", "E", "S", "W"].into_iter().enumerate() {
-                        if ui
-                            .add_sized(
-                                [32.0, 24.0],
-                                egui::Button::selectable(self.preview.facing == i, name),
-                            )
-                            .on_hover_text(model::DIRECTIONS[i])
-                            .clicked()
-                        {
-                            self.preview.facing = i;
+                        if preview_button(ui, "×", "Close preview").clicked() {
+                            self.show_preview = false;
                             ui.ctx().request_repaint();
                         }
-                    }
+                        let (symbol, label) = if self.preview.minimized {
+                            ("+", "Restore preview")
+                        } else {
+                            ("−", "Minimize preview")
+                        };
+                        if preview_button(ui, symbol, label).clicked() {
+                            self.preview.minimized = !self.preview.minimized;
+                            ui.ctx().request_repaint();
+                        }
+                        if rect.width() >= 260.0 {
+                            small(ui, coordinates);
+                        }
+                    });
                 });
+                if self.preview.minimized || !self.show_preview {
+                    return;
+                }
                 small(ui, "WASD walk · Q/E turn");
                 let l = self.location();
                 self.preview
@@ -405,6 +417,21 @@ impl Editor {
                 }
             });
     }
+}
+
+fn preview_button(ui: &mut egui::Ui, symbol: &str, label: &str) -> egui::Response {
+    let response = ui
+        .scope(|ui| {
+            ui.spacing_mut().button_padding.x = 4.0;
+            ui.add_sized(
+                [CONTROL_HEIGHT, CONTROL_HEIGHT],
+                egui::Button::new(symbol).sense(egui::Sense::CLICK),
+            )
+        })
+        .inner
+        .on_hover_text(label);
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), label));
+    response
 }
 
 #[derive(serde::Deserialize)]
@@ -958,7 +985,7 @@ fn render_scene(
     let down = (facing + 2) % 4;
     let directions = [down, (facing + 1) % 4, (facing + 3) % 4];
     let mut out = draw_base(walls, cell, facing, cfg, res);
-    let spawns = actors.map_or_else(Vec::new, |(project, l)| project.spawns(&l.script));
+    let spawns = actors.map_or_else(Vec::new, |(project, l)| project.spawns_at(l));
     for &i in &tables().draw_order {
         let Some(bounds) = clip(i, walls, &v, down, cfg) else {
             continue;
@@ -1074,39 +1101,11 @@ fn render_scene(
                         .and_then(|f| f["value"].as_u64())
                         .unwrap_or(0) as usize
                 };
-                let slot = get("shape_slot");
-                let prefix = format!("sublevel[{}].monster_shapes[", l.section);
-                let fields = project.fields(&l.script);
-                let sheet = fields
-                    .iter()
-                    .find(|f| {
-                        f["name"]
-                            .as_str()
-                            .is_some_and(|n| n.starts_with(&prefix) && n.ends_with(".slot"))
-                            && f["value"].as_u64() == Some(slot as u64)
-                    })
-                    .and_then(|f| f["name"].as_str())
-                    .and_then(|name| {
-                        fields
-                            .iter()
-                            .find(|f| f["name"] == name.replace(".slot", ".sheet"))
-                    })
-                    .and_then(|f| f["value"].as_str());
-                let Some(sheet) = sheet else {
+                let Some(shape) = project.monster_shape(l, spawn) else {
                     continue;
                 };
-                let image = res.sheet(sheet)?;
-                let group = fields
-                    .iter()
-                    .find(|f| {
-                        f["name"]
-                            == format!(
-                                "sublevel[{}].monster_shapes[{slot}].layout_group",
-                                l.section
-                            )
-                    })
-                    .and_then(|f| f["value"].as_u64())
-                    .unwrap_or(0) as usize;
+                let image = res.sheet(shape.sheet)?;
+                let group = shape.layout_group;
                 let shapes: Value =
                     serde_json::from_str(include_str!("../../data/sprite-layouts.json"))?;
                 let frame = [3, 1, 0, 2][(spawn.direction as usize + 4 - facing) % 4];
@@ -1205,7 +1204,7 @@ mod tests {
                 );
                 cells.extend(
                     project
-                        .spawns(&l.script)
+                        .spawns_at(&l)
                         .iter()
                         .take(2)
                         .map(|s| s.block.min(1023)),

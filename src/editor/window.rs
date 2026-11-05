@@ -27,14 +27,18 @@ pub(super) fn drag(ui: &egui::Ui, header: Rect, actions: Rect) {
         }
         let response = ui.interact(
             rect,
-            ui.id().with(("window-drag", index)),
+            ui.scope_id().with(("window-drag", index)),
             Sense::click_and_drag(),
         );
         if response.double_clicked_by(PointerButton::Primary) {
             let maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
             ui.ctx()
                 .send_viewport_cmd(ViewportCommand::Maximized(!maximized));
-        } else if response.drag_started_by(PointerButton::Primary) {
+        } else if response.contains_pointer()
+            && ui.input(|i| i.pointer.button_pressed(PointerButton::Primary))
+        {
+            // Hand off on the fresh press: the window manager may consume the
+            // release, leaving egui's drag state active on the next attempt.
             ui.ctx().send_viewport_cmd(ViewportCommand::StartDrag);
         }
     }
@@ -55,7 +59,7 @@ pub(super) fn controls(ui: &mut egui::Ui) {
             (2, "Minimize", ViewportCommand::Minimized(true)),
         ] {
             let response = ui
-                .add_sized([34.0, 32.0], egui::Button::new("").frame(false))
+                .add_sized([34.0, CONTROL_HEIGHT], egui::Button::new("").frame(false))
                 .on_hover_text(label);
             response.widget_info(|| {
                 egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), label)
@@ -169,7 +173,7 @@ pub(super) fn resize(ui: &egui::Ui) {
         let response = ui
             .interact(
                 Rect::from_min_max(min.into(), max.into()),
-                ui.id().with(("window-resize", index)),
+                ui.scope_id().with(("window-resize", index)),
                 Sense::drag(),
             )
             .on_hover_cursor(cursor);

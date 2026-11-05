@@ -30,7 +30,7 @@ pub(super) fn collect(
         }
     }
     if monsters {
-        for spawn in project.spawns(&l.script) {
+        for spawn in project.spawns_at(l) {
             if spawn.block < SIZE * SIZE {
                 result.entry(spawn.block).or_default().monsters.push(spawn);
             }
@@ -147,7 +147,7 @@ impl Editor {
         over_preview: bool,
         panning: bool,
     ) -> bool {
-        let (pointer, pressed, down, released, focused, alt, space) = ui.input(|i| {
+        let (pointer, pressed, down, released, focused, alt, ctrl, space) = ui.input(|i| {
             (
                 i.pointer.hover_pos(),
                 i.pointer.primary_pressed(),
@@ -155,6 +155,7 @@ impl Editor {
                 i.pointer.button_released(egui::PointerButton::Primary),
                 i.focused,
                 i.modifiers.alt,
+                i.modifiers.ctrl,
                 i.key_down(Key::Space),
             )
         });
@@ -168,6 +169,7 @@ impl Editor {
             && self.tool == Tool::Select
             && pressed
             && !alt
+            && !ctrl
             && !space
             && !panning
             && !over_preview
@@ -353,7 +355,7 @@ impl Editor {
             && !over_preview
             && self.hover.is_some()
             && pick(markers, origin, self.zoom, pointer).is_some()
-            && !ui.input(|i| i.modifiers.alt || i.key_down(Key::Space))
+            && !ui.input(|i| i.modifiers.alt || i.modifiers.ctrl || i.key_down(Key::Space))
         {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
         }

@@ -124,7 +124,7 @@ impl Editor {
         let binding = &document["bindings"][editor.binding];
         let cell = binding["block"].as_u64().unwrap_or(0) as usize;
         egui::Window::new(format!("Tile event · {} · {}, {}", editor.script, cell % SIZE, cell / SIZE))
-            .id(egui::Id::new("event-editor"))
+            .id(egui::Id::unique("event-editor"))
             .open(&mut open)
             .default_size([880.0, 620.0])
             .min_width(680.0)
@@ -181,7 +181,7 @@ impl Editor {
                         ui.set_min_width(ui.available_width());
                         for (i, step) in editor.event.steps.iter().enumerate() {
                             let label = if step.id == editor.event.entry { format!("▶ {}", labels[i].1) } else { labels[i].1.clone() };
-                            if ui.add_sized([ui.available_width(), 30.0], egui::Button::selectable(editor.selected == step.id, label).wrap()).clicked() { editor.selected = step.id; }
+                            if ui.add_sized([ui.available_width(), CONTROL_HEIGHT], egui::Button::selectable(editor.selected == step.id, &label).truncate()).on_hover_text(&label).clicked() { editor.selected = step.id; }
                         }
                     });
                     egui::ScrollArea::vertical().id_salt("event-settings").max_height(height).show(&mut columns[1], |ui| {
@@ -251,13 +251,13 @@ impl Editor {
                 if editor.closing {
                     ui.colored_label(AMBER, "Apply this draft before closing, or discard its changes?");
                     ui.horizontal(|ui| {
-                        if primary(ui, "Apply and close").clicked() { apply = true; }
+                        if ui.button("Apply and close").clicked() { apply = true; }
                         if ui.button("Discard draft").clicked() { discard = true; }
                         if ui.button("Keep editing").clicked() { editor.closing = false; }
                     });
                 } else {
                     ui.horizontal(|ui| {
-                        if ui.add_enabled(editor.dirty() && !conflict, egui::Button::new(RichText::new("Apply changes").color(BG)).fill(ACCENT).stroke(Stroke::NONE)).clicked() { apply = true; }
+                        if ui.add_enabled(editor.dirty() && !conflict, egui::Button::new("Apply changes")).clicked() { apply = true; }
                         if ui.add_enabled(editor.dirty(), egui::Button::new("Discard draft")).clicked() {
                             editor.event = editor.saved.clone(); editor.error = None;
                         }

@@ -24,6 +24,7 @@ const MUTED: Color32 = Color32::from_rgb(143, 160, 170);
 const ACCENT: Color32 = Color32::from_rgb(168, 208, 145);
 const AMBER: Color32 = Color32::from_rgb(234, 180, 108);
 const PURPLE: Color32 = Color32::from_rgb(169, 160, 224);
+const CONTROL_HEIGHT: f32 = 32.0;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tool {
@@ -65,7 +66,6 @@ enum Tab {
 #[derive(Clone, Copy)]
 enum Dialog {
     Help,
-    History,
     Reload,
     Export,
     Close,
@@ -193,8 +193,9 @@ fn theme(ctx: &egui::Context) {
     s.visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(49, 65, 70);
     s.visuals.widgets.active.weak_bg_fill = Color32::from_rgb(58, 78, 70);
     s.spacing.item_spacing = Vec2::new(8.0, 8.0);
-    s.spacing.button_padding = Vec2::new(12.0, 8.0);
-    s.spacing.interact_size = Vec2::new(36.0, 32.0);
+    // Keep text and combo-box icons within the shared button/field height.
+    s.spacing.button_padding = Vec2::new(12.0, 6.0);
+    s.spacing.interact_size = Vec2::new(36.0, CONTROL_HEIGHT);
     s.spacing.indent = 12.0;
     s.text_styles
         .insert(egui::TextStyle::Body, FontId::proportional(14.0));
@@ -240,13 +241,6 @@ fn badge(ui: &mut egui::Ui, s: impl Into<String>, color: Color32) {
         .show(ui, |ui| {
             ui.label(RichText::new(s.into()).size(12.0).color(color));
         });
-}
-fn primary(ui: &mut egui::Ui, label: &str) -> egui::Response {
-    ui.add(
-        egui::Button::new(RichText::new(label).color(BG).strong())
-            .fill(ACCENT)
-            .corner_radius(6),
-    )
 }
 fn wall_color(id: u8) -> Color32 {
     match id {
@@ -355,24 +349,34 @@ impl Editor {
         self.error = Some(error.to_string());
     }
     fn change_area(&mut self, id: usize) {
-        if let Err(e) = self.commit_text_buffers() {
-            self.fail(e);
-            return;
-        }
-        self.project.finish();
-        self.area = id;
-        self.section = self
+        let section = self
             .project
             .areas
             .iter()
             .find(|a| a.id == id)
             .unwrap()
             .sections[0];
+        self.change_location(id, section);
+    }
+    fn change_location(&mut self, area: usize, section: usize) {
+        if let Err(e) = self.commit_text_buffers() {
+            self.fail(e);
+            return;
+        }
+        self.project.finish();
+        self.area = area;
+        self.section = section;
         self.selected_spawn = None;
         self.selected_binding = None;
+        self.entity_drag = None;
+        self.stroke = false;
+        self.hover = None;
+        self.navigation = navigation::Repeater::default();
+        self.script_editor = None;
         self.fit = true;
         self.text_buffers.clear();
-        self.status = format!("Opened area {id:02}.");
+        self.preview.clear();
+        self.status = format!("Opened area {area:02} · Sublevel {}.", section + 1);
     }
     fn save(&mut self) -> bool {
         if let Err(e) = self.commit_text_buffers() {
@@ -419,27 +423,6 @@ impl Editor {
             || "Nothing to redo.".into(),
             |label| format!("Redid: {label}"),
         );
-    }
-    fn open_history(&mut self) {
-        if let Err(e) = self.commit_text_buffers() {
-            self.fail(e);
-            return;
-        }
-        self.project.finish();
-        self.stroke = false;
-        self.dialog = Some(Dialog::History);
-    }
-    fn restore_history(&mut self, position: usize) {
-        if let Err(e) = self.project.seek_history(position) {
-            self.fail(e);
-            return;
-        }
-        self.text_buffers.clear();
-        self.status = if position == 0 {
-            "Restored the state before the retained history.".into()
-        } else {
-            format!("Restored history step {position}.")
-        };
     }
     fn undo_redo_shortcuts(&mut self, ctx: &egui::Context) {
         if ctx
@@ -502,18 +485,6 @@ impl Editor {
         }
         if self.error.is_some() || self.job.is_some() {
             self.navigation = navigation::Repeater::default();
-            return;
-        }
-        if matches!(self.dialog, Some(Dialog::History)) {
-            self.navigation = navigation::Repeater::default();
-            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
-                self.dialog = None;
-            } else {
-                if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::S)) {
-                    self.save();
-                }
-                self.undo_redo_shortcuts(ctx);
-            }
             return;
         }
         if self.dialog.is_some() {
@@ -657,6 +628,73 @@ impl Editor {
             self.project.finish();
         }
     }
+    fn main_menu(&mut self, ui: &mut egui::Ui) {
+        egui::Panel::top("main-menu")
+            .exact_size(CONTROL_HEIGHT)
+            .frame(Frame::NONE.fill(PANEL).inner_margin(Margin::symmetric(16, 0)))
+            .show(ui, |ui| {
+                egui::MenuBar::new().ui(ui, |ui| {
+                    ui.menu_button("File", |ui| {
+                        ui.set_min_width(220.0);
+                        let save_shortcut = ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(
+                            egui::Modifiers::COMMAND,
+                            Key::S,
+                        ));
+                        if ui
+                            .add(egui::Button::new("Save all").shortcut_text(save_shortcut))
+                            .on_hover_text("Save edited levels to the project asset folder")
+                            .clicked()
+                        {
+                            ui.close();
+                            self.save();
+                        }
+                        if ui
+                            .button("Export game files…")
+                            .on_hover_text("Save and repack assets into a game directory")
+                            .clicked()
+                        {
+                            ui.close();
+                            self.project.finish();
+                            self.dialog = Some(Dialog::Export);
+                        }
+                        ui.separator();
+                        if ui
+                            .button("Reload from disk…")
+                            .on_hover_text("Reload the project asset files")
+                            .clicked()
+                        {
+                            ui.close();
+                            self.dialog = Some(Dialog::Reload);
+                        }
+                    });
+                    ui.menu_button("View", |ui| {
+                        ui.set_min_width(180.0);
+                        ui.checkbox(&mut self.show_spawns, "Monsters")
+                            .on_hover_text("Show monster spawn icons. Hover a cell for spawn IDs, types and facing.");
+                        ui.checkbox(&mut self.show_triggers, "Scripts")
+                            .on_hover_text("Show script binding icons. Hover a cell for bytecode offsets and flags.");
+                        ui.checkbox(&mut self.show_ids, "Wall IDs")
+                            .on_hover_text("Show wall IDs on the map");
+                        ui.separator();
+                        if ui
+                            .checkbox(&mut self.show_preview, "Preview")
+                            .on_hover_text("Show or hide the cell preview")
+                            .changed()
+                            && self.show_preview
+                        {
+                            self.preview.minimized = false;
+                            ui.ctx().request_repaint();
+                        }
+                    });
+                    ui.menu_button("Help", |ui| {
+                        if ui.button("Editor help").clicked() {
+                            ui.close();
+                            self.dialog = Some(Dialog::Help);
+                        }
+                    });
+                });
+            });
+    }
     fn header(&mut self, ui: &mut egui::Ui) {
         let header = egui::Panel::top("header")
             .exact_size(78.0)
@@ -693,16 +731,6 @@ impl Editor {
                     let actions = ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         window::controls(ui);
                         ui.add_space(8.0);
-                        if primary(ui, "Save all")
-                            .on_hover_text("Save edited levels · Ctrl+S")
-                            .clicked()
-                        {
-                            self.save();
-                        }
-                        if ui.button("Export game files").clicked() {
-                            self.project.finish();
-                            self.dialog = Some(Dialog::Export);
-                        }
                         if self.test_game.is_some() {
                             if ui.button("Stop test").on_hover_text("Close the test game and discard its temporary saves").clicked() {
                                 match self.test_game.as_mut().unwrap().stop() {
@@ -713,24 +741,21 @@ impl Editor {
                                     Err(e) => self.fail(format!("Could not stop test: {e:#}")),
                                 }
                             }
-                        } else if ui.add_enabled(self.test_job.is_none(), egui::Button::new(
+                        } else if ui.add_enabled(self.test_job.is_none(), egui::Button::new(RichText::new(
                             if self.test_job.is_some() { "Preparing…" } else { "Play from here" }
-                        )).on_hover_text("Test current edits at the start point and preview facing, using the quick-start party with spare +2 weapons, extra-healing potions, and rations in their backpacks. Use Start point (P) to place it. Unsaved edits are included; test saves are temporary.").clicked() {
+                        ).color(BG).strong()).fill(ACCENT).corner_radius(6)).on_hover_text("Test current edits at the start point and preview facing, using the quick-start party with spare +2 weapons, extra-healing potions, and rations in their backpacks. Use Start point (P) to place it. Unsaved edits are included; test saves are temporary.").clicked() {
                             self.play_from_here();
                             ui.ctx().request_repaint();
                         }
-                        if ui.button("?").on_hover_text("Editor help").clicked() {
-                            self.dialog = Some(Dialog::Help);
-                        }
                         let n = self.project.dirty_count() + usize::from(self.pending_text());
-                        badge(
-                            ui,
-                            if n == 0 {
+                        ui.label(
+                            RichText::new(if n == 0 {
                                 "All changes saved".into()
                             } else {
                                 format!("{n} unsaved")
-                            },
-                            if n == 0 { MUTED } else { AMBER },
+                            })
+                            .size(12.0)
+                            .color(if n == 0 { MUTED } else { AMBER }),
                         );
                     });
                     actions.response.rect
@@ -738,6 +763,7 @@ impl Editor {
                 .inner
             });
         window::drag(ui, header.response.rect, header.inner);
+        self.main_menu(ui);
     }
     fn footer(&mut self, ui: &mut egui::Ui) {
         egui::Panel::bottom("status")
@@ -780,8 +806,10 @@ impl Editor {
                     .iter()
                     .filter_map(|a| {
                         let l = self.project.location(a.id, a.sections[0]).ok()?;
-                        let name = model::title(&l.graphics);
-                        let search = format!("{} {name} {}", a.id, l.map).to_lowercase();
+                        let name = model::title(a.id);
+                        let search =
+                            format!("{} {:02} {name} {} {}", a.id, a.id, l.map, l.graphics)
+                                .to_lowercase();
                         if !search.contains(&filter) {
                             return None;
                         }
@@ -852,32 +880,15 @@ impl Editor {
                 if let Some(id) = chosen {
                     self.change_area(id);
                 }
-                ui.add_space(8.0);
-                ui.separator();
-                small(ui, "Project assets");
-                ui.label(
-                    RichText::new(
-                        self.project
-                            .root
-                            .file_name()
-                            .unwrap_or_default()
-                            .to_string_lossy(),
-                    )
-                    .size(13.0),
-                )
-                .on_hover_text(self.project.root.display().to_string());
-                if ui.small_button("Reload from disk").clicked() {
-                    self.dialog = Some(Dialog::Reload);
-                }
             });
     }
     fn workspace(&mut self, ui: &mut egui::Ui) {
         egui::CentralPanel::default()
             .frame(Frame::NONE.fill(BG).inner_margin(16))
             .show(ui, |ui| {
-                let l = self.location();
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(model::title(&l.graphics)).size(23.0).strong());
+                    let l = self.location();
+                    ui.label(RichText::new(model::title(l.area)).size(23.0).strong());
                     badge(ui, format!("Area {:02}", l.area), MUTED);
                     let sections = self
                         .project
@@ -888,25 +899,23 @@ impl Editor {
                         .sections
                         .clone();
                     if sections.len() > 1 {
+                        let mut section = self.section;
                         egui::ComboBox::from_id_salt("section")
                             .selected_text(format!("Sublevel {}", self.section + 1))
                             .width(100.0)
                             .show_ui(ui, |ui| {
                                 for s in sections {
-                                    if ui
-                                        .selectable_value(
-                                            &mut self.section,
-                                            s,
-                                            format!("Sublevel {}", s + 1),
-                                        )
-                                        .changed()
-                                    {
-                                        self.fit = true;
-                                        self.selected_spawn = None;
-                                        self.selected_binding = None;
-                                    }
+                                    ui.selectable_value(
+                                        &mut section,
+                                        s,
+                                        format!("Sublevel {}", s + 1),
+                                    );
                                 }
                             });
+                        if section != self.section {
+                            self.change_location(self.area, section);
+                            ui.ctx().request_repaint();
+                        }
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui
@@ -916,7 +925,7 @@ impl Editor {
                         {
                             self.fit = true;
                         }
-                        if ui.small_button("+").clicked() {
+                        if ui.button("+").clicked() {
                             self.zoom = (self.zoom * 1.2).min(64.0);
                         }
                         ui.label(
@@ -924,11 +933,12 @@ impl Editor {
                                 .small()
                                 .color(MUTED),
                         );
-                        if ui.small_button("−").clicked() {
+                        if ui.button("−").clicked() {
                             self.zoom = (self.zoom / 1.2).max(7.0);
                         }
                     });
                 });
+                let l = self.location();
                 let shared = self.project.shared_areas(&l.map);
                 let extra = if shared.len() > 1 {
                     format!(
@@ -944,67 +954,106 @@ impl Editor {
                 };
                 small(ui, format!("{} · 32 × 32 cells{}", l.map, extra));
                 ui.add_space(8.0);
-                ui.horizontal_wrapped(|ui| {
-                    for tool in [
-                        Tool::Select,
-                        Tool::Start,
-                        Tool::Wall,
-                        Tool::Erase,
-                        Tool::Room,
-                        Tool::Move,
-                    ] {
-                        if ui
-                            .add(egui::Button::selectable(self.tool == tool, tool.label()))
-                            .on_hover_text(if tool == Tool::Start {
-                                "Start point · P · Click a cell to move the preview and playtest start.".to_owned()
-                            } else if tool == Tool::Room {
-                                "Carve · R · Excavate one tile and join adjacent floor. Walls against solid tiles stay in place. Click or drag across cells.".to_owned()
-                            } else {
-                                format!("{} · {}", tool.label(), tool.key())
-                            })
-                            .clicked()
-                        {
-                            self.project.finish();
-                            self.tool = tool;
-                        }
-                    }
-                    ui.separator();
-                    if ui
-                        .add_enabled(
-                            self.project.undo_label().is_some(),
-                            egui::Button::new("Undo"),
-                        )
-                        .on_hover_text(format!("Undo: {} · Ctrl+Z",self.project.undo_label().unwrap_or("nothing")))
-                        .clicked()
+                ui.horizontal(|ui| {
+                    if icons::button(
+                        ui,
+                        icons::Icon::Undo,
+                        "Undo",
+                        self.project.undo_label().is_some(),
+                    )
+                    .on_hover_text(format!(
+                        "Undo: {} · Ctrl+Z",
+                        self.project.undo_label().unwrap_or("nothing")
+                    ))
+                    .on_disabled_hover_text("Undo · Ctrl+Z · Nothing to undo")
+                    .clicked()
                     {
                         self.undo();
                     }
-                    if ui
-                        .add_enabled(
-                            self.project.redo_label().is_some(),
-                            egui::Button::new("Redo"),
-                        )
-                        .on_hover_text(format!("Redo: {} · Ctrl+Shift+Z / Ctrl+Y",self.project.redo_label().unwrap_or("nothing")))
-                        .clicked()
+                    if icons::button(
+                        ui,
+                        icons::Icon::Redo,
+                        "Redo",
+                        self.project.redo_label().is_some(),
+                    )
+                    .on_hover_text(format!(
+                        "Redo: {} · Ctrl+Shift+Z / Ctrl+Y",
+                        self.project.redo_label().unwrap_or("nothing")
+                    ))
+                    .on_disabled_hover_text("Redo · Ctrl+Shift+Z / Ctrl+Y · Nothing to redo")
+                    .clicked()
                     {
                         self.redo();
                     }
-                    if ui.button(format!("History · {}/{}",self.project.history_len(),model::HISTORY_LIMIT))
-                        .on_hover_text("Review retained actions and restore an earlier state")
-                        .clicked() { self.open_history(); }
-                });
-                ui.horizontal(|ui| {
-                    ui.checkbox(&mut self.show_spawns, "Monsters").on_hover_text("Show monster spawn icons. Hover a cell for spawn IDs, types and facing.");
-                    ui.checkbox(&mut self.show_triggers, "Scripts").on_hover_text("Show script binding icons. Hover a cell for bytecode offsets and flags.");
-                    ui.checkbox(&mut self.show_ids, "Wall IDs");
-                    ui.checkbox(&mut self.show_preview, "Preview");
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         small(ui, format!("{} · {}", self.tool.key(), self.tool.label()));
                     });
                 });
                 ui.add_space(5.0);
-                self.canvas(ui);
+                ui.horizontal_top(|ui| {
+                    self.tool_bar(ui);
+                    self.canvas(ui);
+                });
             });
+    }
+    fn tool_bar(&mut self, ui: &mut egui::Ui) {
+        let height = ui.available_height();
+        ui.allocate_ui_with_layout(
+            Vec2::new(CONTROL_HEIGHT + 18.0, height),
+            Layout::top_down(Align::Min),
+            |ui| {
+                Frame::NONE
+                    .fill(PANEL)
+                    .stroke(Stroke::new(1.0, BORDER))
+                    .corner_radius(8)
+                    .inner_margin(8)
+                    .show(ui, |ui| {
+                        ui.set_width(CONTROL_HEIGHT);
+                        ui.set_min_height((height - 18.0).max(0.0));
+                        for tool in [
+                            Tool::Start,
+                            Tool::Select,
+                            Tool::Wall,
+                            Tool::Erase,
+                            Tool::Room,
+                            Tool::Move,
+                        ] {
+                            let selected = self.tool == tool;
+                            let response = ui
+                                .add_sized(
+                                    Vec2::splat(CONTROL_HEIGHT),
+                                    egui::Button::selectable(selected, "")
+                                        .sense(egui::Sense::CLICK),
+                                )
+                                .on_hover_text(if tool == Tool::Start {
+                                    "Start point · P · Click a cell to move the preview and playtest start. Ctrl+Click works with any tool.".to_owned()
+                                } else if tool == Tool::Room {
+                                    "Carve · R · Excavate one tile and join adjacent floor. Walls against solid tiles stay in place. Click or drag across cells.".to_owned()
+                                } else {
+                                    format!("{} · {}", tool.label(), tool.key())
+                                });
+                            response.widget_info(|| {
+                                egui::WidgetInfo::selected(
+                                    egui::Role::Button,
+                                    ui.is_enabled(),
+                                    selected,
+                                    tool.label(),
+                                )
+                            });
+                            icons::tool(
+                                ui.painter(),
+                                egui::Rect::from_center_size(response.rect.center(), Vec2::splat(20.0)),
+                                tool,
+                                if selected { ACCENT } else { TEXT },
+                            );
+                            if response.clicked() {
+                                self.project.finish();
+                                self.tool = tool;
+                            }
+                        }
+                    });
+            },
+        );
     }
     fn inspector(&mut self, ui: &mut egui::Ui) {
         egui::Panel::right("inspector")
@@ -1078,7 +1127,7 @@ impl Editor {
                         self.selected = cell.min(SIZE * SIZE - 1);
                         ui.ctx().request_repaint();
                     }
-                    if primary(ui, "Edit event steps…").clicked() {
+                    if ui.button("Edit event steps…").clicked() {
                         self.open_event(&l.script, self.selected_binding.unwrap());
                     }
                 });
@@ -1101,7 +1150,7 @@ impl Editor {
                 let (r, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
                 ui.painter()
                     .circle_filled(r.center(), 4.0, wall_color(walls[dir]));
-                ui.add_sized([65.0, 28.0], egui::Label::new(*name));
+                ui.add_sized([65.0, CONTROL_HEIGHT], egui::Label::new(*name));
                 let mut value = walls[dir];
                 if ui
                     .add(egui::DragValue::new(&mut value).range(0..=255))
@@ -1113,7 +1162,7 @@ impl Editor {
                     self.project.finish();
                 }
                 if ui
-                    .small_button("Use")
+                    .button("Use")
                     .on_hover_text("Use this wall ID as the brush")
                     .clicked()
                 {
@@ -1203,7 +1252,7 @@ impl Editor {
         }
         let spawns: Vec<_> = self
             .project
-            .spawns(&l.script)
+            .spawns_at(&l)
             .into_iter()
             .filter(|s| s.block == self.selected)
             .collect();
@@ -1252,13 +1301,16 @@ impl Editor {
     }
     fn monsters(&mut self, ui: &mut egui::Ui) {
         let l = self.location();
-        let spawns = self.project.spawns(&l.script);
+        let spawns = self.project.spawns_at(&l);
         ui.add_space(5.0);
         ui.label(RichText::new("Initial monster spawns").strong());
         small(ui, "Select a spawn to move it or adjust its properties.");
         ui.add_space(5.0);
         if spawns.is_empty() {
-            small(ui, "This area has no decoded initial spawns.");
+            small(
+                ui,
+                "This sublevel has no initial spawns with loaded monster shapes.",
+            );
             return;
         }
         if self
@@ -1312,22 +1364,10 @@ impl Editor {
             small(ui, "Click a cell to place the selected spawn.");
         }
         ui.add_space(5.0);
-        let sheet = self
-            .project
-            .fields(&l.script)
-            .iter()
-            .find(|f| {
-                f["name"]
-                    == format!(
-                        "sublevel[{}].monster_shapes[{}].sheet",
-                        l.section,
-                        if spawn.kind > 0 { 1 } else { 0 }
-                    )
-            })
-            .and_then(|f| f["value"].as_str())
-            .unwrap_or("wolf")
-            .to_owned();
-        self.sprite_preview(ui, &sheet);
+        if let Some(shape) = self.project.monster_shape(&l, spawn) {
+            let sheet = shape.sheet.to_owned();
+            self.sprite_preview(ui, &sheet);
+        }
         let prefix = format!("spawn[{id}].");
         let indices: Vec<_> = self
             .project
@@ -1487,7 +1527,7 @@ impl Editor {
             } else {
                 ui.horizontal(|ui| {
                     ui.add_sized(
-                        [ui.available_width() - 82.0, 26.0],
+                        [ui.available_width() - 82.0, CONTROL_HEIGHT],
                         egui::Label::new(RichText::new(label).size(12.5)).wrap(),
                     );
                     let mut n = f["value"].as_i64().unwrap_or(0);
@@ -1510,7 +1550,7 @@ impl Editor {
                 ui.add_space(8.0);
                 ui.label(self.error.as_ref().unwrap());
                 ui.add_space(8.0);
-                if primary(ui, "OK").clicked() {
+                if ui.button("OK").clicked() {
                     self.error = None;
                 }
             });
@@ -1521,43 +1561,6 @@ impl Editor {
             egui::Modal::new(egui::Id::unique("dialog")).show(ctx, |ui| {
                 ui.set_width(480.0);
                 match dialog {
-                    Dialog::History => {
-                        ui.heading("Edit history");
-                        let position = self.project.history_position();
-                        let total = self.project.history_len();
-                        small(ui,format!("{total}/{} actions retained · {position} applied · {} available to redo",model::HISTORY_LIMIT,total-position));
-                        ui.label("Select an action to restore the project to that point.");
-                        ui.add_space(5.0);
-                        ui.horizontal(|ui| {
-                            if ui.add_enabled(position>0,egui::Button::new("Undo")).on_hover_text("Ctrl+Z").clicked() { self.undo(); }
-                            if ui.add_enabled(position<total,egui::Button::new("Redo")).on_hover_text("Ctrl+Shift+Z / Ctrl+Y").clicked() { self.redo(); }
-                            if ui.add_enabled(position>0,egui::Button::new("Before history")).on_hover_text("Restore the state before the oldest retained action. Older changes stay applied.").clicked() { self.restore_history(0); }
-                        });
-                        ui.separator();
-                        let entries = self.project.history().map(|edit|(edit.label.clone(),edit.changes.len())).collect::<Vec<_>>();
-                        let mut target = None;
-                        egui::ScrollArea::vertical().id_salt("edit-history").max_height(280.0).show(ui,|ui| {
-                            ui.set_min_width(ui.available_width());
-                            if entries.is_empty() {
-                                ui.add_space(12.0);
-                                small(ui,"No changes yet. Wall edits, property changes, and entity moves will appear here.");
-                                ui.add_space(12.0);
-                            }
-                            for (index,(label,changes)) in entries.iter().enumerate().rev() {
-                                let step = index+1;
-                                let state = if step==position { " · Current" } else if step>position { " · Redo" } else { "" };
-                                let text = RichText::new(format!("{step:02} · {label}{state}")).color(if step>position { MUTED } else { TEXT });
-                                if ui.add_sized([ui.available_width(),32.0],egui::Button::selectable(step==position,text))
-                                    .on_hover_text(format!("{changes} recorded property change{}",if *changes==1 { "" } else { "s" }))
-                                    .clicked() { target = Some(step); }
-                            }
-                        });
-                        if let Some(target) = target { self.restore_history(target); }
-                        ui.add_space(8.0);
-                        small(ui,"Saving keeps session history. New edits replace redo actions. Reloading or reopening starts a fresh history.");
-                        ui.add_space(8.0);
-                        if primary(ui,"Done").clicked() { close = true; }
-                    }
                     Dialog::Help => {
                         ui.heading("Make Darkmoon your own");
                         ui.label("Select an area on the left, choose a tool, and edit directly on the map.");
@@ -1565,6 +1568,7 @@ impl Editor {
                         for (key, description) in [
                             ("V", "Inspect cells; drag entity icons to move them"),
                             ("P", "Place the preview and playtest start point"),
+                            ("Ctrl + click", "Place the start point with any tool"),
                             ("B / X", "Paint / erase the nearest cell edge"),
                             ("W / S", "Walk forward / backward, respecting walls"),
                             ("A / D · Q / E", "Sidestep left / right · turn left / right"),
@@ -1584,16 +1588,17 @@ impl Editor {
                             });
                         }
                         ui.add_space(8.0);
-                        ui.label("Save writes to your editable asset folder. Export game files builds a separate runtime folder. The editor runs natively on Linux.");
-                        ui.label("Use Start point (P) and click a cell to place the preview and playtest start. Inspecting cells and editing walls or entities keeps it in place. WASD walks from that point; Q/E changes facing. Play from here starts the full game there with the quick-start party, spare +2 weapons, extra-healing potions, and rations in their backpacks, and includes unsaved edits. Stop test closes the game; temporary test saves are discarded.");
-                        if primary(ui,"Start editing").clicked() { close=true; }
+                        ui.label("View contains Monsters, Scripts, Wall IDs, and Preview visibility toggles. Enable Preview to reopen it expanded. Its title bar has minimize/restore and close controls. Drag the title bar to move it; double-click to return it to the bottom-right corner.");
+                        ui.label("File contains Save all, Export game files, and Reload from disk. Help contains Editor help. Save writes to your editable asset folder. Export game files builds a separate runtime folder. The editor runs natively on Linux.");
+                        ui.label("Use Start point (P) or Ctrl+Click a cell with any tool to place the preview and playtest start. Inspecting cells and editing walls or entities keeps it in place. WASD walks from that point; Q/E changes facing. Play from here starts the full game there with the quick-start party, spare +2 weapons, extra-healing potions, and rations in their backpacks, and includes unsaved edits. Stop test closes the game; temporary test saves are discarded.");
+                        if ui.button("Start editing").clicked() { close=true; }
                     }
                     Dialog::Reload => {
                         ui.heading("Reload the project?");
                         ui.label("This reads the asset files again. Unsaved edits and undo history will be discarded.");
                         ui.horizontal(|ui| {
                             if ui.button("Cancel").clicked() { close=true; }
-                            if primary(ui,"Reload").clicked() {
+                            if ui.button("Reload").clicked() {
                                 match Project::open(&self.project.root) {
                                     Ok(p) => {
                                         self.project=p;
@@ -1625,7 +1630,7 @@ impl Editor {
                         small(ui,"Existing saves in the destination are preserved.");
                         ui.horizontal(|ui| {
                             if ui.button("Cancel").clicked() { close=true; }
-                            if primary(ui,"Save & export").clicked() && self.save() {
+                            if ui.button("Save & export").clicked() && self.save() {
                                 let root=self.project.root.clone();
                                 let out=PathBuf::from(&self.export_path);
                                 let (tx,rx)=mpsc::channel();
@@ -1649,7 +1654,7 @@ impl Editor {
                                 self.allow_close=true;
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                             }
-                            if primary(ui,"Save & close").clicked() && self.save() {
+                            if ui.button("Save & close").clicked() && self.save() {
                                 self.allow_close=true;
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                             }

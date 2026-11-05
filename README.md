@@ -69,13 +69,14 @@ version or increment is specified; see `AGENTS.md` for the project instructions.
 The editor includes:
 
 - All 16 game areas, sublevels, and their actual map references. Shared maps are clearly identified, and edits stay shared between areas using the same map.
-- A zoomable map canvas with coordinate rulers, skull icons for monster spawns, code icons for script bindings, a preview direction arrow, and optional wall IDs. Grouped monsters show a count; hover an entity cell for spawn IDs, types, facing, and script binding details. The **Monsters** and **Scripts** checkboxes toggle their icons.
-- A first-person **Cell preview**, initially in the lower-right corner, using the original perspective tiles and sprites. Drag its title bar to move it within the map viewport; double-click the title bar to reset its position. Use **Start point (P)** and click a cell to place the preview and playtest start, then click **N / E / S / W** in the preview to change orientation. The start point's arrow shows the facing direction and remains visible when the preview panel is hidden.
+- A zoomable map canvas with coordinate rulers, skull icons for monster spawns, code icons for script bindings, a preview direction arrow, and optional wall IDs. Grouped monsters show a count; hover an entity cell for spawn IDs, types, facing, and script binding details. The **Monsters** and **Scripts** toggles in **View** control their icons; **Wall IDs** controls wall labels.
+- A vertical icon toolbar to the left of the map for **Start point**, **Inspect**, **Wall**, **Erase**, **Carve**, and **Move spawn**. The active tool is highlighted; hover an icon for its name and keyboard shortcut. Undo and Redo remain above the viewport; display options are in **View**.
+- A first-person **Cell preview**, initially in the lower-right corner, using the original perspective tiles and sprites. Drag its title bar to move it within the map viewport; double-click the title bar to reset its position. Use **−** to minimize it to its title bar, **+** to restore it, or **×** to close it. **View → Preview** toggles visibility and reopens a hidden preview expanded. Use **Start point (P)**, the first tool, or **Ctrl+Click** a cell with any tool to place the preview and playtest start, then use **Q / E** to turn and **WASD** to walk. The start point's arrow shows the facing direction and remains visible when the preview panel is hidden.
 - Wall painting, erasing, passage carving, wall sampling, and optional editing of both sides of an edge. The wall palette has large graphic tiles showing each wall, door, or decoration in the area's actual art style; hover for a larger preview and passability details. Existing asymmetric walls stay intact until you edit them.
-- Cell inspection, copy/paste, undo/redo with up to **100 actions** of session history, dirty-state indicators, and protection against silently overwriting files changed outside the editor. Open **History** to review actions or restore an earlier point; each wall stroke and entity drop counts as one action. Saving keeps history, and a new edit replaces any redo actions.
+- Cell inspection, copy/paste, undo/redo with up to **100 actions** of session history, dirty-state indicators, and protection against silently overwriting files changed outside the editor. Each wall stroke and entity drop counts as one action. Saving keeps history, and a new edit replaces any redo actions.
 - Movement and property editing for existing initial monster spawns, with sprite previews and editable monster-type statistics.
 - Searchable decoded level fields for timers, wall mappings, monster properties, and resource references.
-- Save to editable JSON and an optional **Export game files** action that repacks assets into a separate game directory. Export does not launch DOSBox.
+- A left-aligned **File / View / Help** menu bar sits below the title bar. **File** contains **Save all**, **Export game files…**, and **Reload from disk…**; **View** contains display toggles; **Help** contains **Editor help**. Save writes editable JSON; Export repacks assets into a separate game directory without launching DOSBox. The green **Play from here** button remains directly available in the header.
 
 Choose **Inspect (V)** and drag a skull or code icon to move its entities to another cell. The drop target is highlighted; release to place, or press **Escape** to cancel. Groups move together, and each drop is one undoable edit. Script bindings cannot be dropped onto a cell with another script binding. Moving a script relocates its activation cell; its instructions and embedded block references stay intact. To move one monster from a group, choose it in **Inspector → Monsters**, then use **Move on map**. **Wall** and **Erase** affect the nearest cell edge; **Carve** excavates only the clicked tile and joins it to adjacent floor cells. Solid neighbors keep their walls, preserving the outline of the room or passage without creating a plus-shaped opening. Drag to excavate a sequence of tiles; this behavior is independent of **Paint both sides of an edge**. **Level data** edits the decoded properties and does not create additional spawn records.
 
@@ -83,9 +84,9 @@ Select a script icon (or inspect its tile), then choose **Edit event steps…**.
 
 Message text can be typed directly, with line breaks and `\xNN` escapes for DOS characters/control codes. Item templates show the game's item names. Dialogue commands select existing passages from `assets/texts/dialogue.json` and edit their button text; use **Show message** for new inline messages. Event steps support conditional comparisons and existing shared routines. Editing an event creates its own compiled copy, so other triggers using the original routine keep their original behavior.
 
-The cell preview updates from unsaved edits, including undo/redo. Walk with **W/S** (forward/backward), **A/D** (sidestep), and turn with **Q/E** or the direction buttons. Hold a key to keep moving. Movement follows the original game's destination-wall passability flags, including door states and custom wall definitions, and stops at the map boundary. Walking moves the preview and playtest start without editing the level or changing the inspected cell. Use **Inspect (V)** to click cells or use the arrow keys to inspect any location freely; inspecting and editing cells keeps the start point in place. Hide the preview with the **Preview** checkbox when you need to edit cells underneath it. The preview displays geometry, decorations, doors, and initial monsters, but does not run combat, timers, animation, or level scripts; walking does not activate triggers, open doors, collide with monsters, or change levels.
+The cell preview updates from unsaved edits, including undo/redo. Walk with **W/S** (forward/backward), **A/D** (sidestep), and turn with **Q/E**. Hold a key to keep moving. Movement follows the original game's destination-wall passability flags, including door states and custom wall definitions, and stops at the map boundary. Walking moves the preview and playtest start without editing the level or changing the inspected cell. Use **Inspect (V)** to click cells or use the arrow keys to inspect any location freely; inspecting and editing cells keeps the start point in place. Hide the preview with **View → Preview** when you need to edit cells underneath it. The preview displays geometry, decorations, doors, and initial monsters, but does not run combat, timers, animation, or level scripts; walking does not activate triggers, open doors, collide with monsters, or change levels.
 
-Clicking an entity icon selects it without changing the highlighted cell or first-person preview position. Use **Locate** in the monster inspector or **Locate cell** on the selected script to inspect its cell. Clicking the map background with **Inspect (V)** selects a cell. Use **Start point (P)** to move the preview and playtest start.
+Clicking an entity icon selects it without changing the highlighted cell or first-person preview position. Use **Locate** in the monster inspector or **Locate cell** on the selected script to inspect its cell. Clicking the map background with **Inspect (V)** selects a cell. Use **Start point (P)** or **Ctrl+Click** with any tool to move the preview and playtest start.
 
 Click **Play from here** in the toolbar to test the current level in the full game. The party starts at the start point's arrow, facing the direction chosen in **Cell preview**, using the original quick-start party. Each character also receives a spare **+2 weapon** (long sword, short sword, mace, or staff), **two potions of extra healing**, and **two iron rations** in empty backpack slots; their existing equipment stays in place. Place it with **Start point (P)** or adjust it by walking in the preview. Current wall, monster, script, and resource edits are included even if you have not saved them. Preparation takes a few seconds; the game opens in a separate DOSBox window, skipping the intro and load menus. The editor stays open and keeps unsaved changes and undo history.
 
@@ -95,6 +96,7 @@ Use **Stop test**, or close the game window, to finish. Each launch uses a fresh
 | --- | --- |
 | V / B / X / R / M | Inspect / wall / erase / carve / move spawn |
 | P | Place the preview and playtest start point |
+| Ctrl + click | Place the start point with any tool |
 | W / S | Walk forward / backward with wall collision |
 | A / D | Sidestep left / right with wall collision |
 | Q / E | Turn left / right |
@@ -158,6 +160,7 @@ cargo run --locked -- play
 | `assets/audio/*.adl.json` | Ten AdLib banks: track mapping, channel programs, named bytecode operations, note durations, and FM instruments. |
 | `assets/audio/*.snd.json` | Ten PC-speaker banks, decoded into notes, durations, repeat loops, frequency changes, and timer scales. |
 | `assets/audio/wav/` | Native Rust WAV previews of every distinct PC-speaker program, with an index of track aliases. |
+| `assets/audio/music/` | AdLib music and musical cues as 44.1 kHz, 16-bit stereo WAVs, with a track/alias index and M3U playlist; generated with `tools/extract_music.py`. |
 | `assets/data/` | Remaining data tables retained as lossless editable byte arrays. |
 
 Indexed PNGs give exact palette control. RGB/RGBA sheets are mapped to the nearest existing palette color; alpha is not a new game feature. The indexed color 0 remains the original sprite transparency convention. Sprite crop exports include the original background index, so they can be pasted back without losing pixels.
@@ -174,7 +177,29 @@ cargo run --locked -- play --no-pack
 
 `play` normally repacks automatically. Unmodified files are copied byte for byte. Modified CPS, VCN, and INF files are encoded back to LCW compression, as required by the DOS loader. Invalid dimensions, pointer-moving changes, and out-of-range fields are rejected before writing runtime files. Quit the game before repacking its directory.
 
-AdLib programs use fixed offsets because they contain relative branches and subroutines. Change note opcodes, arguments, instrument levels, attack/decay parameters, and priorities while preserving instruction/region sizes. Note opcodes below 128 encode octave × 16 + semitone (C = 0), followed by duration. An instruction's `operation` and `offset` fields are explanatory; `opcode` and `arguments` are authoritative. These banks are not ordinary MIDI files. The FM banks have not been converted to WAV/MIDI.
+AdLib programs use fixed offsets because they contain relative branches and subroutines. Change note opcodes, arguments, instrument levels, attack/decay parameters, and priorities while preserving instruction/region sizes. Note opcodes below 128 encode octave × 16 + semitone (C = 0), followed by duration. An instruction's `operation` and `offset` fields are explanatory; `opcode` and `arguments` are authoritative. These banks are not ordinary MIDI files.
+
+Export the original AdLib music without building the app:
+
+```sh
+python3 tools/bootstrap.py --adplay
+python3 tools/extract_music.py
+```
+
+The exporter uses [AdPlay/AdPlug](https://adplug.github.io/) with Nuked OPL3
+emulation and reads the original banks in `assets/raw/`. It includes channel-nine
+music starters and short musical cues from all ten banks, excluding reset/fade
+commands and ordinary sound effects. `assets/audio/music/index.json` maps WAVs to
+their bank, track aliases, source hash, duration, and audio levels;
+`playlist.m3u` plays the complete export. Playback ends at AdPlug's first-loop/end
+detection or a 600-second limit, recorded as `duration_capped` in the index.
+Use `--seconds N` to change the limit, `--assets PATH` for another asset project,
+or `--output PATH` for another destination. Existing output directories are
+protected from replacement. The bootstrap unpacks pinned Linux x86-64 Debian
+binaries locally under `tools/adplay/`; a compatible system `adplay` or
+`EYE2_ADPLAY` executable can also be used. These WAVs are derived previews, not
+repack inputs; edit the AdLib JSON to change game audio. No MIDI export is
+implemented.
 
 The PC-speaker interpreter runs in Rust and can export standard 44.1 kHz mono PCM WAV previews. The oscillator uses a square wave; this is not a capture of a physical PC speaker. Long/looping programs are capped at 30 seconds by default, with `duration_capped` recorded in the index. Edit SND JSON to change game audio; the WAV files are derived previews and are not imported back into DOS sound programs.
 

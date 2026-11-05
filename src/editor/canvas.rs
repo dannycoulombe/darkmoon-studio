@@ -53,6 +53,7 @@ impl Editor {
             middle,
             space,
             alt,
+            ctrl,
             delta,
             scroll,
             zoom_delta,
@@ -66,6 +67,7 @@ impl Editor {
                 i.pointer.button_down(egui::PointerButton::Middle),
                 i.key_down(Key::Space),
                 i.modifiers.alt,
+                i.modifiers.ctrl,
                 i.pointer.delta(),
                 // egui maps Shift+wheel to X and Ctrl+wheel to zoom_delta.
                 i.smooth_scroll_delta,
@@ -108,14 +110,14 @@ impl Editor {
         if !entity_consumed && self.dialog.is_none() && self.error.is_none() && self.job.is_none() {
             if let Some((cell, dir)) = self.hover {
                 if (pressed || secondary_pressed) && !space && !middle {
-                    if self.tool != Tool::Start || secondary_pressed || alt {
+                    let place_start =
+                        !secondary_pressed && (ctrl || (self.tool == Tool::Start && !alt));
+                    if !place_start {
                         self.selected = cell;
                     }
-                    if alt {
-                        self.brush = self.project.maps[&l.map].walls[cell][dir];
-                        self.tool = Tool::Wall;
-                        self.status = format!("Sampled wall ID {}.", self.brush);
-                    } else if self.tool == Tool::Start && !secondary_pressed {
+                    if place_start {
+                        self.project.finish();
+                        self.stroke = false;
                         self.preview.cell = cell;
                         self.status = format!(
                             "Start point at {}, {} · facing {}.",
@@ -123,13 +125,13 @@ impl Editor {
                             cell / SIZE,
                             model::DIRECTIONS[self.preview.facing]
                         );
+                    } else if alt {
+                        self.brush = self.project.maps[&l.map].walls[cell][dir];
+                        self.tool = Tool::Wall;
+                        self.status = format!("Sampled wall ID {}.", self.brush);
                     } else if self.tool == Tool::Select && !secondary_pressed {
                         self.selected_binding = None;
-                        if let Some(s) = self
-                            .project
-                            .spawns(&l.script)
-                            .iter()
-                            .find(|s| s.block == cell)
+                        if let Some(s) = self.project.spawns_at(&l).iter().find(|s| s.block == cell)
                         {
                             self.selected_spawn = Some(s.slot);
                             self.tab = Tab::Monsters;
@@ -163,7 +165,7 @@ impl Editor {
                         Tool::Erase => self.project.paint(&l.map, cell, dir, 0, self.linked),
                         Tool::Room => self.project.carve(&l.map, cell),
                         Tool::Move => {
-                            let spawns = self.project.spawns(&l.script);
+                            let spawns = self.project.spawns_at(&l);
                             let selected = self
                                 .selected_spawn
                                 .or_else(|| spawns.first().map(|s| s.slot));
@@ -179,7 +181,8 @@ impl Editor {
                                 }
                             } else {
                                 self.status =
-                                    "This area has no initial monster spawns to move.".into();
+                                    "This sublevel has no visible initial monster spawns to move."
+                                        .into();
                             }
                         }
                         Tool::Select | Tool::Start => {}
@@ -188,7 +191,7 @@ impl Editor {
                 if response.hovered() && !panning {
                     ui.ctx().set_cursor_icon(if space {
                         egui::CursorIcon::Grab
-                    } else if self.tool == Tool::Select {
+                    } else if self.tool == Tool::Select && !ctrl {
                         egui::CursorIcon::Default
                     } else {
                         egui::CursorIcon::Crosshair
@@ -379,8 +382,13 @@ impl Editor {
                                 .color(AMBER),
                         );
                         for spawn in &markers.monsters {
+                            let sheet = self
+                                .project
+                                .monster_shape(&l, spawn)
+                                .map(|s| s.sheet)
+                                .unwrap_or("");
                             ui.label(format!(
-                                "Spawn {:02} · Type {} · {}",
+                                "Spawn {:02} · Type {} · {sheet} · {}",
                                 spawn.slot,
                                 spawn.kind,
                                 model::DIRECTIONS[spawn.direction as usize % 4]
@@ -466,7 +474,7 @@ impl Editor {
                     ),
                 Vec2::splat(self.zoom),
             );
-            if matches!(self.tool, Tool::Wall | Tool::Erase) {
+            if !ctrl && matches!(self.tool, Tool::Wall | Tool::Erase) {
                 painter.line_segment(
                     edge(r.shrink(1.0), dir),
                     Stroke::new(

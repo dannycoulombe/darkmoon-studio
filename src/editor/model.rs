@@ -87,7 +87,12 @@ pub struct Spawn {
     pub block: usize,
     pub kind: u8,
     pub direction: u8,
+    pub shape_slot: u8,
     pub block_field: usize,
+}
+pub struct MonsterShape<'a> {
+    pub sheet: &'a str,
+    pub layout_group: usize,
 }
 #[derive(Clone)]
 pub enum Change {
@@ -286,11 +291,39 @@ impl Project {
                     block: f["value"].as_u64().unwrap_or(0) as usize,
                     kind: value("type"),
                     direction: value("direction"),
+                    shape_slot: value("shape_slot"),
                     block_field: i,
                 });
             }
         }
         spawns
+    }
+    /// Monster shapes are reloaded for each sublevel, rather than inherited.
+    pub fn monster_shape(&self, location: &Location, spawn: &Spawn) -> Option<MonsterShape<'_>> {
+        let fields = self.fields(&location.script);
+        let prefix = format!("sublevel[{}].monster_shapes[", location.section);
+        let name = fields.iter().find_map(|field| {
+            let name = field["name"].as_str()?;
+            (name.starts_with(&prefix)
+                && name.ends_with(".slot")
+                && field["value"].as_u64() == Some(spawn.shape_slot as u64))
+            .then_some(name.strip_suffix(".slot")?)
+        })?;
+        let get = |suffix: &str| {
+            let key = format!("{name}.{suffix}");
+            fields.iter().find(|field| field["name"] == key)
+        };
+        Some(MonsterShape {
+            sheet: get("sheet")?["value"].as_str()?,
+            layout_group: get("layout_group")?["value"].as_u64()? as usize,
+        })
+    }
+    /// Only expose spawns whose shape slot is loaded in the selected sublevel.
+    pub fn spawns_at(&self, location: &Location) -> Vec<Spawn> {
+        self.spawns(&location.script)
+            .into_iter()
+            .filter(|spawn| self.monster_shape(location, spawn).is_some())
+            .collect()
     }
     pub fn wall_ids(&self, location: &Location) -> Vec<u8> {
         let mut ids: BTreeSet<u8> = self.maps[&location.map]
@@ -596,16 +629,20 @@ impl Project {
     pub fn redo_label(&self) -> Option<&str> {
         self.redo.last().map(|e| e.label.as_str())
     }
+    #[cfg(test)]
     pub fn history_len(&self) -> usize {
         self.undo.len() + self.redo.len()
     }
+    #[cfg(test)]
     pub fn history_position(&self) -> usize {
         self.undo.len()
     }
     /// Oldest retained action first, including the undone branch in order.
+    #[cfg(test)]
     pub fn history(&self) -> impl Iterator<Item = &Edit> {
         self.undo.iter().chain(self.redo.iter().rev())
     }
+    #[cfg(test)]
     pub fn seek_history(&mut self, position: usize) -> Result<()> {
         self.finish();
         ensure!(
@@ -748,13 +785,26 @@ pub fn validate_field(field: &Value, value: &Value) -> Result<()> {
     }
     Ok(())
 }
-pub fn title(graphics: &str) -> &str {
-    match graphics {
-        "forest" => "Forest",
-        "dung" => "Temple",
-        "mezz" => "Stone halls",
-        "silver" => "Silver tower",
-        "crimson" => "Crimson tower",
+/// Area names follow the EOB II automap in reference/automap_eob.cpp.
+/// Graphics sets are shared by distinct areas, including the Azure Tower.
+pub fn title(area: usize) -> &'static str {
+    match area {
+        1 => "Catacombs I",
+        2 => "Catacombs II",
+        3 => "Catacombs III",
+        4 => "Forest",
+        5 => "Darkmoon Temple",
+        6 => "Temple Mezzanine",
+        7 => "Silver Tower I",
+        8 => "Silver Tower II",
+        9 => "Silver Tower III",
+        10 => "Azure Tower I",
+        11 => "Azure Tower II",
+        12 => "Azure Tower III",
+        13 => "Azure Tower IV",
+        14 => "Azure Tower V",
+        15 => "Crimson Tower I",
+        16 => "Crimson Tower II",
         _ => "Dungeon",
     }
 }
@@ -1036,6 +1086,84 @@ mod tests {
                 .all(|w| w[0] == 0)
         );
         assert_eq!(project.history_len(), 1);
+        fs::remove_dir_all(path).unwrap();
+    }
+    #[test]
+    fn sublevel_entities_use_loaded_shape_slots_and_live_edits() {
+        let (mut project, path) = fixture();
+        project
+            .areas
+            .iter_mut()
+            .find(|a| a.id == 4)
+            .unwrap()
+            .sections
+            .push(1);
+        let document = &mut project.scripts.get_mut("level4").unwrap().value;
+        let fields = document["fields"].as_array_mut().unwrap();
+        for (name, value) in [
+            ("spawn[0].block", json!(33)),
+            ("spawn[0].type", json!(1)),
+            ("spawn[0].shape_slot", json!(0)),
+            ("spawn[1].block", json!(66)),
+            ("spawn[1].shape_slot", json!(1)),
+            ("sublevel[0].monster_shapes[0].slot", json!(1)),
+            ("sublevel[0].monster_shapes[0].sheet", json!("guard2")),
+            ("sublevel[0].monster_shapes[0].layout_group", json!(1)),
+            ("sublevel[0].monster_shapes[1].slot", json!(0)),
+            ("sublevel[0].monster_shapes[1].sheet", json!("guard1")),
+            ("sublevel[0].monster_shapes[1].layout_group", json!(2)),
+            ("sublevel[1].monster_shapes[0].slot", json!(0)),
+            ("sublevel[1].monster_shapes[0].sheet", json!("spider")),
+            ("sublevel[1].monster_shapes[0].layout_group", json!(1)),
+        ] {
+            fields.push(json!({"name":name,"value":value,"encoding":if value.is_string() { "string13" } else { "u8" },"offset":fields.len()}));
+        }
+        document["bindings"] = json!([{"block":99,"flags":8,"bytecode_offset":4}]);
+        let first = project.location(4, 0).unwrap();
+        let second = project.location(4, 1).unwrap();
+        let slots = |project: &Project, location: &Location| {
+            project
+                .spawns_at(location)
+                .iter()
+                .map(|s| s.slot)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(slots(&project, &first), vec![0, 1]);
+        assert_eq!(slots(&project, &second), vec![0]);
+        let spawn = &project.spawns_at(&first)[0];
+        let shape = project.monster_shape(&first, spawn).unwrap();
+        assert_eq!((shape.sheet, shape.layout_group), ("guard1", 2));
+        let shape = project.monster_shape(&second, spawn).unwrap();
+        assert_eq!((shape.sheet, shape.layout_group), ("spider", 1));
+        let markers = super::super::entities::collect(&project, &second, true, true);
+        assert_eq!(markers[&33].monsters[0].slot, 0);
+        assert!(!markers.contains_key(&66));
+        assert_eq!(
+            markers[&99].scripts.len(),
+            1,
+            "bindings are shared across sublevels"
+        );
+        let index = project
+            .fields("level4")
+            .iter()
+            .position(|f| f["name"] == "sublevel[1].monster_shapes[0].slot")
+            .unwrap();
+        project.begin("Change loaded shape slot");
+        project.set_field("level4", index, json!(1)).unwrap();
+        project.finish();
+        assert_eq!(slots(&project, &second), vec![1]);
+        project.undo();
+        assert_eq!(slots(&project, &second), vec![0]);
+        assert_eq!(
+            slots(&project, &first),
+            vec![0, 1],
+            "switching back restores the first sublevel's entities"
+        );
+        assert_eq!(
+            project.spawns("level4").len(),
+            2,
+            "hidden spawns remain in the document"
+        );
         fs::remove_dir_all(path).unwrap();
     }
     #[test]
