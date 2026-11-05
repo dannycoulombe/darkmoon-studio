@@ -3,6 +3,7 @@ mod cps;
 mod editor;
 mod exe;
 mod inf;
+mod inf_script;
 mod native;
 mod playtest;
 mod runtime;

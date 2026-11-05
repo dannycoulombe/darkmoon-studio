@@ -297,7 +297,7 @@ pub fn encode(v: &Value, original: &[u8]) -> Result<Vec<u8>> {
             }
         }
     }
-    Ok(out)
+    crate::inf_script::compile(v, out)
 }
 
 fn binding_directory(bytes: &[u8]) -> Result<(usize, usize)> {

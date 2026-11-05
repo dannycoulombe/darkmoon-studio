@@ -108,11 +108,21 @@ impl Editor {
         if !entity_consumed && self.dialog.is_none() && self.error.is_none() && self.job.is_none() {
             if let Some((cell, dir)) = self.hover {
                 if (pressed || secondary_pressed) && !space && !middle {
-                    self.selected = cell;
+                    if self.tool != Tool::Start || secondary_pressed || alt {
+                        self.selected = cell;
+                    }
                     if alt {
                         self.brush = self.project.maps[&l.map].walls[cell][dir];
                         self.tool = Tool::Wall;
                         self.status = format!("Sampled wall ID {}.", self.brush);
+                    } else if self.tool == Tool::Start && !secondary_pressed {
+                        self.preview.cell = cell;
+                        self.status = format!(
+                            "Start point at {}, {} · facing {}.",
+                            cell % SIZE,
+                            cell / SIZE,
+                            model::DIRECTIONS[self.preview.facing]
+                        );
                     } else if self.tool == Tool::Select && !secondary_pressed {
                         self.selected_binding = None;
                         if let Some(s) = self
@@ -135,9 +145,12 @@ impl Editor {
                         });
                     }
                 }
-                if self.stroke && (down || secondary_down) && !panning {
+                if self.stroke
+                    && (down || secondary_down || pressed || secondary_pressed)
+                    && !panning
+                {
                     self.selected = cell;
-                    let tool = if secondary_down {
+                    let tool = if secondary_down || secondary_pressed {
                         Tool::Erase
                     } else {
                         self.tool
@@ -148,7 +161,7 @@ impl Editor {
                                 .paint(&l.map, cell, dir, self.brush, self.linked)
                         }
                         Tool::Erase => self.project.paint(&l.map, cell, dir, 0, self.linked),
-                        Tool::Room => self.project.carve(&l.map, cell, self.linked),
+                        Tool::Room => self.project.carve(&l.map, cell),
                         Tool::Move => {
                             let spawns = self.project.spawns(&l.script);
                             let selected = self
@@ -169,7 +182,7 @@ impl Editor {
                                     "This area has no initial monster spawns to move.".into();
                             }
                         }
-                        Tool::Select => {}
+                        Tool::Select | Tool::Start => {}
                     }
                 }
                 if response.hovered() && !panning {
@@ -406,7 +419,15 @@ impl Editor {
             Stroke::new(1.8, ACCENT),
             StrokeKind::Inside,
         );
-        if self.show_preview {
+        {
+            let r = Rect::from_min_size(
+                origin
+                    + Vec2::new(
+                        (self.preview.cell % SIZE) as f32 * self.zoom,
+                        (self.preview.cell / SIZE) as f32 * self.zoom,
+                    ),
+                Vec2::splat(self.zoom),
+            );
             let direction = [
                 Vec2::new(0.0, -1.0),
                 Vec2::new(1.0, 0.0),
@@ -414,7 +435,7 @@ impl Editor {
                 Vec2::new(-1.0, 0.0),
             ][self.preview.facing];
             let side = Vec2::new(-direction.y, direction.x);
-            let occupied = entities.contains_key(&self.selected);
+            let occupied = entities.contains_key(&self.preview.cell);
             let c = r.center()
                 + if occupied {
                     direction * self.zoom * 0.5
@@ -475,7 +496,7 @@ impl Editor {
         for (icon, color, label, width) in [
             (icons::Icon::Monster, AMBER, "Monster", 99.0),
             (icons::Icon::Script, PURPLE, "Script", 82.0),
-            (icons::Icon::Preview, ACCENT, "Preview", 88.0),
+            (icons::Icon::Preview, ACCENT, "Start", 88.0),
         ] {
             icons::draw(
                 &painter,

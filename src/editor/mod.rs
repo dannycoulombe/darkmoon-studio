@@ -4,6 +4,8 @@ mod icons;
 pub mod model;
 mod navigation;
 mod preview;
+mod scripts;
+mod window;
 
 use anyhow::Result;
 use eframe::egui::{
@@ -26,6 +28,7 @@ const PURPLE: Color32 = Color32::from_rgb(169, 160, 224);
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tool {
     Select,
+    Start,
     Wall,
     Erase,
     Room,
@@ -35,6 +38,7 @@ impl Tool {
     fn label(self) -> &'static str {
         match self {
             Self::Select => "Inspect",
+            Self::Start => "Start point",
             Self::Wall => "Wall",
             Self::Erase => "Erase",
             Self::Room => "Carve",
@@ -44,6 +48,7 @@ impl Tool {
     fn key(self) -> &'static str {
         match self {
             Self::Select => "V",
+            Self::Start => "P",
             Self::Wall => "B",
             Self::Erase => "X",
             Self::Room => "R",
@@ -72,6 +77,7 @@ struct Editor {
     selected: usize,
     selected_spawn: Option<usize>,
     selected_binding: Option<usize>,
+    script_editor: Option<scripts::EventEditor>,
     tool: Tool,
     brush: u8,
     linked: bool,
@@ -97,6 +103,7 @@ struct Editor {
     export_path: String,
     job: Option<mpsc::Receiver<Result<String, String>>>,
     test_job: Option<mpsc::Receiver<Result<crate::playtest::Prepared, String>>>,
+    test_worker: Option<std::thread::JoinHandle<()>>,
     test_game: Option<crate::playtest::Running>,
     text_buffers: BTreeMap<String, String>,
     textures: BTreeMap<String, egui::TextureHandle>,
@@ -116,6 +123,7 @@ pub fn run(assets: PathBuf, runtime: PathBuf, level: usize) -> Result<()> {
         selected: 171,
         selected_spawn: None,
         selected_binding: None,
+        script_editor: None,
         tool: Tool::Select,
         brush: 1,
         linked: true,
@@ -141,6 +149,7 @@ pub fn run(assets: PathBuf, runtime: PathBuf, level: usize) -> Result<()> {
         export_path: runtime.display().to_string(),
         job: None,
         test_job: None,
+        test_worker: None,
         test_game: None,
         text_buffers: BTreeMap::new(),
         textures: BTreeMap::new(),
@@ -148,6 +157,7 @@ pub fn run(assets: PathBuf, runtime: PathBuf, level: usize) -> Result<()> {
     };
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
+            .with_decorations(false)
             .with_inner_size([1440.0, 900.0])
             .with_min_inner_size([1080.0, 700.0])
             .with_app_id("eye2.darkmoon-studio")
@@ -270,7 +280,7 @@ impl Editor {
         let start = crate::playtest::Start {
             level: self.area,
             section: self.section,
-            cell: self.selected,
+            cell: self.preview.cell,
             facing: self.preview.facing,
         };
         let snapshot = self.project.snapshot();
@@ -284,11 +294,11 @@ impl Editor {
             start.cell / SIZE,
             model::DIRECTIONS[start.facing]
         );
-        std::thread::spawn(move || {
+        self.test_worker = Some(std::thread::spawn(move || {
             let result = crate::playtest::prepare(snapshot, start)
                 .map_err(|e| format!("Playtest failed: {e:#}"));
             let _ = tx.send(result);
-        });
+        }));
     }
     fn poll_playtest(&mut self, ctx: &egui::Context) {
         if let Some(rx) = &self.test_job {
@@ -331,6 +341,11 @@ impl Editor {
                 }
                 Ok(None) => {}
             }
+        }
+        if self.test_job.is_none()
+            && let Some(worker) = self.test_worker.take()
+        {
+            let _ = worker.join();
         }
         if self.test_job.is_some() || self.test_game.is_some() {
             ctx.request_repaint_after(Duration::from_millis(200));
@@ -446,20 +461,22 @@ impl Editor {
         self.project.finish();
     }
     fn pending_text(&self) -> bool {
-        self.text_buffers.iter().any(|(key, text)| {
-            key.rsplit_once(':')
-                .and_then(|(script, index)| {
-                    Some((
-                        self.project.scripts.get(script)?,
-                        index.parse::<usize>().ok()?,
-                    ))
-                })
-                .is_some_and(|(script, index)| {
-                    script.value["fields"][index]["value"].as_str() != Some(text)
-                })
-        })
+        self.script_editor.as_ref().is_some_and(|e| e.dirty())
+            || self.text_buffers.iter().any(|(key, text)| {
+                key.rsplit_once(':')
+                    .and_then(|(script, index)| {
+                        Some((
+                            self.project.scripts.get(script)?,
+                            index.parse::<usize>().ok()?,
+                        ))
+                    })
+                    .is_some_and(|(script, index)| {
+                        script.value["fields"][index]["value"].as_str() != Some(text)
+                    })
+            })
     }
     fn commit_text_buffers(&mut self) -> Result<()> {
+        self.commit_event_draft()?;
         let buffers = self.text_buffers.clone();
         self.project.begin("Change level resources");
         for (key, text) in buffers {
@@ -513,12 +530,17 @@ impl Editor {
             return;
         }
         self.undo_redo_shortcuts(ctx);
+        if self.script_editor.is_some() {
+            self.navigation = navigation::Repeater::default();
+            return;
+        }
         ctx.input(|i| {
             if i.modifiers.command || i.modifiers.ctrl || i.modifiers.alt {
                 return;
             }
             for (key, tool) in [
                 (Key::V, Tool::Select),
+                (Key::P, Tool::Start),
                 (Key::B, Tool::Wall),
                 (Key::X, Tool::Erase),
                 (Key::R, Tool::Room),
@@ -596,12 +618,12 @@ impl Editor {
             match navigation::advance(
                 &self.project.maps[&l.map].walls,
                 &flags,
-                self.selected,
+                self.preview.cell,
                 self.preview.facing,
                 action,
             ) {
                 Ok((cell, facing)) => {
-                    self.selected = cell;
+                    self.preview.cell = cell;
                     self.preview.facing = facing;
                     self.status = format!(
                         "Preview at {}, {} · facing {}",
@@ -636,10 +658,11 @@ impl Editor {
         }
     }
     fn header(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::top("header")
+        let header = egui::Panel::top("header")
             .exact_size(78.0)
             .frame(frame())
             .show(ui, |ui| {
+                ui.style_mut().interaction.selectable_labels = false;
                 ui.horizontal(|ui| {
                     let (rect, _) = ui.allocate_exact_size(Vec2::splat(40.0), egui::Sense::hover());
                     let p = ui.painter();
@@ -667,7 +690,9 @@ impl Editor {
                         ui.label(RichText::new("Darkmoon Studio").size(23.0).strong());
                         small(ui, "Eye of the Beholder II · Level editor");
                     });
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    let actions = ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        window::controls(ui);
+                        ui.add_space(8.0);
                         if primary(ui, "Save all")
                             .on_hover_text("Save edited levels · Ctrl+S")
                             .clicked()
@@ -690,7 +715,7 @@ impl Editor {
                             }
                         } else if ui.add_enabled(self.test_job.is_none(), egui::Button::new(
                             if self.test_job.is_some() { "Preparing…" } else { "Play from here" }
-                        )).on_hover_text("Test current edits at the highlighted cell and preview facing, using the quick-start party. Unsaved edits are included; test saves are temporary.").clicked() {
+                        )).on_hover_text("Test current edits at the start point and preview facing, using the quick-start party with spare +2 weapons, extra-healing potions, and rations in their backpacks. Use Start point (P) to place it. Unsaved edits are included; test saves are temporary.").clicked() {
                             self.play_from_here();
                             ui.ctx().request_repaint();
                         }
@@ -708,8 +733,11 @@ impl Editor {
                             if n == 0 { MUTED } else { AMBER },
                         );
                     });
-                });
+                    actions.response.rect
+                })
+                .inner
             });
+        window::drag(ui, header.response.rect, header.inner);
     }
     fn footer(&mut self, ui: &mut egui::Ui) {
         egui::Panel::bottom("status")
@@ -919,6 +947,7 @@ impl Editor {
                 ui.horizontal_wrapped(|ui| {
                     for tool in [
                         Tool::Select,
+                        Tool::Start,
                         Tool::Wall,
                         Tool::Erase,
                         Tool::Room,
@@ -926,7 +955,13 @@ impl Editor {
                     ] {
                         if ui
                             .add(egui::Button::selectable(self.tool == tool, tool.label()))
-                            .on_hover_text(format!("{} · {}", tool.label(), tool.key()))
+                            .on_hover_text(if tool == Tool::Start {
+                                "Start point · P · Click a cell to move the preview and playtest start.".to_owned()
+                            } else if tool == Tool::Room {
+                                "Carve · R · Excavate one tile and join adjacent floor. Walls against solid tiles stay in place. Click or drag across cells.".to_owned()
+                            } else {
+                                format!("{} · {}", tool.label(), tool.key())
+                            })
                             .clicked()
                         {
                             self.project.finish();
@@ -1037,11 +1072,14 @@ impl Editor {
                     );
                     if ui
                         .button("Locate cell")
-                        .on_hover_text("Move the highlighted cell and preview to this trigger")
+                        .on_hover_text("Select this trigger's cell for inspection")
                         .clicked()
                     {
                         self.selected = cell.min(SIZE * SIZE - 1);
                         ui.ctx().request_repaint();
+                    }
+                    if primary(ui, "Edit event steps…").clicked() {
+                        self.open_event(&l.script, self.selected_binding.unwrap());
                     }
                 });
             ui.add_space(8.0);
@@ -1149,6 +1187,19 @@ impl Editor {
                 ui,
                 "This cell has scripted behavior. Its trigger remains attached when you edit walls.",
             );
+            for (index, binding) in self.project.scripts[&l.script].value["bindings"]
+                .as_array()
+                .unwrap()
+                .clone()
+                .iter()
+                .enumerate()
+            {
+                if binding["block"].as_u64() == Some(self.selected as u64)
+                    && ui.button("Edit event steps…").clicked()
+                {
+                    self.open_event(&l.script, index);
+                }
+            }
         }
         let spawns: Vec<_> = self
             .project
@@ -1513,10 +1564,11 @@ impl Editor {
                         ui.add_space(8.0);
                         for (key, description) in [
                             ("V", "Inspect cells; drag entity icons to move them"),
+                            ("P", "Place the preview and playtest start point"),
                             ("B / X", "Paint / erase the nearest cell edge"),
                             ("W / S", "Walk forward / backward, respecting walls"),
                             ("A / D · Q / E", "Sidestep left / right · turn left / right"),
-                            ("R", "Carve a passage by clearing all four edges"),
+                            ("R", "Excavate one tile; join floor and keep solid neighbors"),
                             ("M", "Move the selected existing monster spawn"),
                             ("Alt + click", "Sample a wall ID"),
                             ("Middle-drag / Space-drag", "Pan the map"),
@@ -1533,7 +1585,7 @@ impl Editor {
                         }
                         ui.add_space(8.0);
                         ui.label("Save writes to your editable asset folder. Export game files builds a separate runtime folder. The editor runs natively on Linux.");
-                        ui.label("Play from here starts the full game at the highlighted cell and preview facing with the quick-start party. It includes unsaved edits. Stop test closes the game; temporary test saves are discarded.");
+                        ui.label("Use Start point (P) and click a cell to place the preview and playtest start. Inspecting cells and editing walls or entities keeps it in place. WASD walks from that point; Q/E changes facing. Play from here starts the full game there with the quick-start party, spare +2 weapons, extra-healing potions, and rations in their backpacks, and includes unsaved edits. Stop test closes the game; temporary test saves are discarded.");
                         if primary(ui,"Start editing").clicked() { close=true; }
                     }
                     Dialog::Reload => {
@@ -1553,6 +1605,7 @@ impl Editor {
                                         self.preview.clear();
                                         self.selected_spawn=None;
                                         self.selected_binding=None;
+                                        self.script_editor=None;
                                         self.fit=true;
                                         self.status="Reloaded project from disk.".into();
                                     }
@@ -1621,6 +1674,18 @@ impl Editor {
         }
     }
 }
+impl Drop for Editor {
+    fn drop(&mut self) {
+        self.test_game = None;
+        self.test_job = None;
+        // Let playtest preparation finish cleaning its private workspace before
+        // process exit terminates background threads. Dropping the receiver
+        // above also discards any prepared game still waiting in the channel.
+        if let Some(worker) = self.test_worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
 impl eframe::App for Editor {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
@@ -1649,6 +1714,8 @@ impl eframe::App for Editor {
         self.sidebar(ui);
         self.inspector(ui);
         self.workspace(ui);
+        window::resize(ui);
+        self.event_window(&ctx);
         self.dialogs(&ctx);
     }
 }

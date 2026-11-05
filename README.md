@@ -4,44 +4,97 @@ This project analyzes the supplied DOS **Eye of the Beholder II v1.1** installat
 
 The supplied game directory is read only. Exported originals live in `assets/raw/`; rebuilt game files and writable saves live in `runtime/`.
 
+## Required files and locations
+
+You must supply your own **complete installed DOS Eye of the Beholder II v1.1
+game directory**, including `start.exe` and its accompanying game data files.
+These original game files are not included in this repository, and
+`tools/bootstrap.py` does not download them. Supplying only the executable is
+insufficient.
+
+Keep the original installation in any directory you choose, then pass that
+directory to `extract --source`. `/home/dcoulombe/Games/DOS/EYE2` is the path used
+in this local setup and the CLI default; you do not need to recreate it. On Linux,
+the source directory must contain a file named exactly `start.exe`.
+
+| Location | How it is populated |
+| --- | --- |
+| `/path/to/your/EYE2/` | You provide the complete original DOS installation here. Use this directory as `extract --source`. |
+| `assets/` | `extract` generates editable assets and preserves the original files in `assets/raw/`. |
+| `runtime/` | `pack`, or `play` with its default repacking, generates a separate playable game directory, including `runtime/start.exe`. Saves are written here. |
+| `target/release/eye2` | Cargo generates the native Linux application with `cargo build --release --locked`. The launchers prefer this executable, and the screenshot script requires it. |
+| `target/debug/eye2` | Cargo generates the native debug executable with `cargo build --locked` or the default `cargo run`. |
+
+The native `eye2` executable and the original DOS `start.exe` are separate
+programs. `target/`, `assets/`, and `runtime/` are ignored by Git and are absent
+from a fresh clone. Let the commands generate their contents; no manual copying
+into these directories is needed. Run the setup commands below from the repository
+root.
+
 ## Native Linux level editor
 
 **Darkmoon Studio** is a native Rust desktop application. It opens the extracted levels directly and requires no DOS runtime or browser.
+
+![Darkmoon Studio level editor showing the forest map and cell preview](resources/darkmoon-studio-screenshot.png)
 
 ```sh
 ./edit-levels.sh
 ```
 
-The optimized Linux executable is already built at `target/release/eye2`. `edit-levels.sh` launches it with the editor command. You can also launch the provided `DarkmoonStudio.desktop` entry from the project folder. For a different extracted asset project:
+In this local checkout, the optimized Linux executable is already built at `target/release/eye2`. For a fresh clone, generate it with `cargo build --release --locked` after extracting the game assets as described below. `edit-levels.sh` launches it with the editor command. You can also launch the provided `DarkmoonStudio.desktop` entry from the project folder. For a different extracted asset project:
 
 ```sh
 ./edit-levels.sh --assets /path/to/assets --runtime /path/to/export --level 4
 ```
 
+Capture the editor as a PNG using the existing release executable:
+
+```sh
+./screenshot.sh
+./screenshot.sh verification/level-4.png --level 4
+```
+
+The default output is `verification/screenshot.png`, replaced on each run. Every
+successful capture also refreshes `resources/darkmoon-studio-screenshot.png`, the
+image displayed above, even when a custom output path is specified. The script
+opens a fresh editor on a private Xvfb display and closes it after capture,
+so it works without a desktop session and leaves any open editor alone. It does
+not capture unsaved changes from an existing editor window. Requires ImageMagick's
+`import`, `xwininfo`, and either system Xvfb or the copy under `tools/xvfb/`.
+
+On deploy requests, create an annotated Git tag starting at `v0.0.1` when there are
+no version tags. Subsequent deploys increment the patch version unless another
+version or increment is specified; see `AGENTS.md` for the project instructions.
+
 The editor includes:
 
 - All 16 game areas, sublevels, and their actual map references. Shared maps are clearly identified, and edits stay shared between areas using the same map.
 - A zoomable map canvas with coordinate rulers, skull icons for monster spawns, code icons for script bindings, a preview direction arrow, and optional wall IDs. Grouped monsters show a count; hover an entity cell for spawn IDs, types, facing, and script binding details. The **Monsters** and **Scripts** checkboxes toggle their icons.
-- A first-person **Cell preview**, initially in the lower-right corner, using the original perspective tiles and sprites. Drag its title bar to move it within the map viewport; double-click the title bar to reset its position. Select a cell, then click **N / E / S / W** in the preview to change orientation. The selected cell's arrow shows the facing direction.
+- A first-person **Cell preview**, initially in the lower-right corner, using the original perspective tiles and sprites. Drag its title bar to move it within the map viewport; double-click the title bar to reset its position. Use **Start point (P)** and click a cell to place the preview and playtest start, then click **N / E / S / W** in the preview to change orientation. The start point's arrow shows the facing direction and remains visible when the preview panel is hidden.
 - Wall painting, erasing, passage carving, wall sampling, and optional editing of both sides of an edge. The wall palette has large graphic tiles showing each wall, door, or decoration in the area's actual art style; hover for a larger preview and passability details. Existing asymmetric walls stay intact until you edit them.
 - Cell inspection, copy/paste, undo/redo with up to **100 actions** of session history, dirty-state indicators, and protection against silently overwriting files changed outside the editor. Open **History** to review actions or restore an earlier point; each wall stroke and entity drop counts as one action. Saving keeps history, and a new edit replaces any redo actions.
 - Movement and property editing for existing initial monster spawns, with sprite previews and editable monster-type statistics.
 - Searchable decoded level fields for timers, wall mappings, monster properties, and resource references.
 - Save to editable JSON and an optional **Export game files** action that repacks assets into a separate game directory. Export does not launch DOSBox.
 
-Choose **Inspect (V)** and drag a skull or code icon to move its entities to another cell. The drop target is highlighted; release to place, or press **Escape** to cancel. Groups move together, and each drop is one undoable edit. Script bindings cannot be dropped onto a cell with another script binding. Moving a script relocates its activation cell; its instructions and embedded block references stay intact. To move one monster from a group, choose it in **Inspector → Monsters**, then use **Move on map**. **Wall** and **Erase** affect the nearest cell edge; **Carve** clears a cell's four edges. **Level data** edits the decoded properties; it does not author new script bytecode or create additional spawn records.
+Choose **Inspect (V)** and drag a skull or code icon to move its entities to another cell. The drop target is highlighted; release to place, or press **Escape** to cancel. Groups move together, and each drop is one undoable edit. Script bindings cannot be dropped onto a cell with another script binding. Moving a script relocates its activation cell; its instructions and embedded block references stay intact. To move one monster from a group, choose it in **Inspector → Monsters**, then use **Move on map**. **Wall** and **Erase** affect the nearest cell edge; **Carve** excavates only the clicked tile and joins it to adjacent floor cells. Solid neighbors keep their walls, preserving the outline of the room or passage without creating a plus-shaped opening. Drag to excavate a sequence of tiles; this behavior is independent of **Paint both sides of an edge**. **Level data** edits the decoded properties and does not create additional spawn records.
 
-The cell preview updates from unsaved edits, including undo/redo. Walk with **W/S** (forward/backward), **A/D** (sidestep), and turn with **Q/E** or the direction buttons. Hold a key to keep moving. Movement follows the original game's destination-wall passability flags, including door states and custom wall definitions, and stops at the map boundary. Walking moves the highlighted cell without editing the level. Click cells or use the arrow keys to inspect any location freely. Hide the preview with the **Preview** checkbox when you need to edit cells underneath it. The preview displays geometry, decorations, doors, and initial monsters, but does not run combat, timers, animation, or level scripts; walking does not activate triggers, open doors, collide with monsters, or change levels.
+Select a script icon (or inspect its tile), then choose **Edit event steps…**. The event editor shows named commands with forms for map coordinates, facing, characters, items, messages, conditions, and branch destinations. Choose a command and **Insert before selected**, replace a step, reorder it, or remove it. **Start at** chooses the entry step; the triangle marks that step. **Activation** edits the events that call the script. Branches and routine calls use step names, and referenced steps cannot be removed until their references are changed. **Apply changes** records the entire draft as one undoable edit; Save and Play from here also apply drafts. Closing an edited draft offers apply/discard choices. **Restore original event** is undoable. The editor preview does not execute these events; use **Play from here** to test them in the game.
 
-Clicking an entity icon selects it without changing the highlighted cell or first-person preview position. Use **Locate** in the monster inspector or **Locate cell** on the selected script to jump to it. Clicking the map background still selects a cell normally.
+Message text can be typed directly, with line breaks and `\xNN` escapes for DOS characters/control codes. Item templates show the game's item names. Dialogue commands select existing passages from `assets/texts/dialogue.json` and edit their button text; use **Show message** for new inline messages. Event steps support conditional comparisons and existing shared routines. Editing an event creates its own compiled copy, so other triggers using the original routine keep their original behavior.
 
-Click **Play from here** in the toolbar to test the current level in the full game. The party starts at the highlighted cell, facing the direction chosen in **Cell preview**, using the original quick-start party. Current wall, monster, script, and resource edits are included even if you have not saved them. Preparation takes a few seconds; the game opens in a separate DOSBox window, skipping the intro and load menus. The editor stays open and keeps unsaved changes and undo history.
+The cell preview updates from unsaved edits, including undo/redo. Walk with **W/S** (forward/backward), **A/D** (sidestep), and turn with **Q/E** or the direction buttons. Hold a key to keep moving. Movement follows the original game's destination-wall passability flags, including door states and custom wall definitions, and stops at the map boundary. Walking moves the preview and playtest start without editing the level or changing the inspected cell. Use **Inspect (V)** to click cells or use the arrow keys to inspect any location freely; inspecting and editing cells keeps the start point in place. Hide the preview with the **Preview** checkbox when you need to edit cells underneath it. The preview displays geometry, decorations, doors, and initial monsters, but does not run combat, timers, animation, or level scripts; walking does not activate triggers, open doors, collide with monsters, or change levels.
+
+Clicking an entity icon selects it without changing the highlighted cell or first-person preview position. Use **Locate** in the monster inspector or **Locate cell** on the selected script to inspect its cell. Clicking the map background with **Inspect (V)** selects a cell. Use **Start point (P)** to move the preview and playtest start.
+
+Click **Play from here** in the toolbar to test the current level in the full game. The party starts at the start point's arrow, facing the direction chosen in **Cell preview**, using the original quick-start party. Each character also receives a spare **+2 weapon** (long sword, short sword, mace, or staff), **two potions of extra healing**, and **two iron rations** in empty backpack slots; their existing equipment stays in place. Place it with **Start point (P)** or adjust it by walking in the preview. Current wall, monster, script, and resource edits are included even if you have not saved them. Preparation takes a few seconds; the game opens in a separate DOSBox window, skipping the intro and load menus. The editor stays open and keeps unsaved changes and undo history.
 
 Use **Stop test**, or close the game window, to finish. Each launch uses a fresh temporary copy of the assets and game; cached level state is cleared so current edits take effect. Test saves are discarded when the test ends. Your original installation, exported runtime, and normal game saves stay untouched. Changes made while a test is running take effect on the next launch.
 
 | Shortcut | Action |
 | --- | --- |
 | V / B / X / R / M | Inspect / wall / erase / carve / move spawn |
+| P | Place the preview and playtest start point |
 | W / S | Walk forward / backward with wall collision |
 | A / D | Sidestep left / right with wall collision |
 | Q / E | Turn left / right |
@@ -55,7 +108,7 @@ Use **Stop test**, or close the game window, to finish. Each launch uses a fresh
 | Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y | Undo / redo (up to 100 actions) |
 | Ctrl+S / Ctrl+Q | Save all / close |
 
-The editor prompts before closing with unsaved edits. Reloading from disk explicitly discards unsaved changes and undo history. The original installation under `Games/DOS/EYE2` is never edited.
+The editor prompts before closing with unsaved edits. Reloading from disk explicitly discards unsaved changes and undo history. The original installation supplied to `extract --source` is never edited.
 
 To rebuild the application after changing Rust source, run `cargo build --release --locked`. The launcher falls back to `cargo run` if the optimized executable is missing. Building requires Rust 1.95 or newer; the prebuilt executable uses the Linux desktop's OpenGL/X11 or Wayland libraries.
 
@@ -67,13 +120,15 @@ The local checkout is already extracted and has a working DOSBox Staging runtime
 cargo run --locked -- play
 ```
 
-Choose **Load Game in Progress → QUICK START PARTY** to enter the forest immediately. The intro starts automatically on launch and is also available through **Run Introduction**. Use the mouse controls or the numeric keypad: 8 forward, 2 backward, 4/6 strafe, 7/9 turn. Escape skips the intro. Ctrl+F9 exits DOSBox. Saves remain in `runtime/` between repacks.
+Choose **Load Game in Progress → QUICK START PARTY** to enter the forest immediately. The intro starts automatically on launch and is also available through **Run Introduction**. Walk with **W/S** (forward/backward), **A/D** (strafe left/right), and **Q/E** (turn left/right). These controls also work in **Play from here** tests. The mouse controls and numeric keypad remain available: 8 forward, 2 backward, 4/6 strafe, 7/9 turn. Hold **Scroll Lock** for normal letter input when entering character names or save descriptions. Release it to resume WASD + Q/E movement. Escape skips the intro. Ctrl+F9 exits DOSBox. Saves remain in `runtime/` between repacks.
 
-For a fresh checkout:
+For a fresh checkout, first place your complete original DOS installation in a
+directory of your choice. Replace `/path/to/your/EYE2` below with that directory
+(the one containing `start.exe` and the accompanying game data):
 
 ```sh
 python3 tools/bootstrap.py
-cargo run --locked -- extract --source /home/dcoulombe/Games/DOS/EYE2
+cargo run --locked -- extract --source "/path/to/your/EYE2"
 cargo run --locked -- verify
 cargo run --locked -- play
 ```
@@ -95,7 +150,7 @@ cargo run --locked -- play
 | `assets/tiles/*.png` | Five dungeon tile atlases; preserve indices 0–15. |
 | `assets/tiles/*.json` | Tile color maps and VMP references. |
 | `assets/maps/level*.json` | All 15 32×32 maps. Each cell has north/east/south/west wall IDs. These are wall types, not just booleans. |
-| `assets/scripts/level*.json` | All 16 decompressed INF files, plus named monster stats, spawns, resource references, wall assignments, timers, and script bindings. Edit `fields[].value` or relocate an existing `bindings[].block`; offsets, record counts, and record sizes must stay fixed. |
+| `assets/scripts/level*.json` | All 16 decompressed INF files, named level data, and script bindings. `events` stores event-editor overrides by binding index. Edit `fields[].value` or relocate an existing `bindings[].block`; original offsets, record counts, and record sizes stay fixed. |
 | `assets/items/items.json` | 434 item records and 123 names. Edit names, icons, positions, values, flags, and types. |
 | `assets/items/types.json` | 64 item types, equipment restrictions, armor values, damage dice, and bonuses. |
 | `assets/texts/dialogue.json` | 122 dialogue groups. Retain null separators and DOS control codes. Text offsets are rebuilt automatically. |
@@ -128,7 +183,7 @@ cargo run --locked -- render-sounds
 cargo run --locked -- render-sound --bank forest --track 12 --output preview.wav
 ```
 
-INF `bytes` retain the complete script and initialization data. Named `fields` override only values changed from the original, so unrelated byte edits are preserved. The script bytecode has not yet been converted into a complete editable syntax tree or a Rust interpreter. The `.inf.bin` files are inspection copies; edit JSON to repack.
+INF `bytes` retain the complete original script and initialization data. Named `fields` override only values changed from the original, so unrelated byte edits are preserved. The event editor decodes reachable commands, conditions, and routines into editable steps stored in `events`. Packing compiles edited events into an extension, relocates their branches, rebuilds the message table, and redirects only their bindings. Original instructions keep their addresses; unrelated events keep their original behavior. Export size is limited to 64,000 decompressed bytes, and invalid references are rejected before an edit is applied. A native Rust script interpreter is not implemented. The `.inf.bin` files are inspection copies; edit JSON to repack.
 
 ## Native inspection
 

@@ -39,6 +39,7 @@ pub(super) struct WallThumbnail {
     error: Option<String>,
 }
 pub(super) struct Preview {
+    pub cell: usize,
     pub facing: usize,
     panel_position: Option<Vec2>,
     pub panel_interacting: bool,
@@ -53,6 +54,7 @@ pub(super) struct Preview {
 impl Default for Preview {
     fn default() -> Self {
         Self {
+            cell: 171,
             facing: 2,
             panel_position: None,
             panel_interacting: false,
@@ -360,7 +362,7 @@ impl Editor {
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         small(
                             ui,
-                            format!("{}, {}", self.selected % 32, self.selected / 32),
+                            format!("{}, {}", self.preview.cell % 32, self.preview.cell / 32),
                         );
                     });
                 });
@@ -383,7 +385,7 @@ impl Editor {
                 small(ui, "WASD walk · Q/E turn");
                 let l = self.location();
                 self.preview
-                    .update(ui.ctx(), &self.project, &l, self.selected);
+                    .update(ui.ctx(), &self.project, &l, self.preview.cell);
                 if let Some(texture) = &self.preview.texture {
                     let size =
                         Vec2::new(ui.available_width(), ui.available_width() * 144.0 / 176.0);

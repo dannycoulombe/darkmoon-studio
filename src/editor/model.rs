@@ -110,6 +110,11 @@ pub enum Change {
         before: usize,
         after: usize,
     },
+    Events {
+        script: String,
+        before: Option<Value>,
+        after: Option<Value>,
+    },
 }
 pub struct Edit {
     pub label: String,
@@ -374,6 +379,20 @@ impl Project {
                     json!(if forward { *after } else { *before });
                 d.dirty = d.value != d.saved;
             }
+            Change::Events {
+                script,
+                before,
+                after,
+            } => {
+                let d = self.scripts.get_mut(script).unwrap();
+                let value = if forward { after } else { before };
+                if let Some(value) = value {
+                    d.value["events"] = value.clone();
+                } else {
+                    d.value.as_object_mut().unwrap().remove("events");
+                }
+                d.dirty = d.value != d.saved;
+            }
         }
     }
     fn change(&mut self, change: Change) {
@@ -407,9 +426,18 @@ impl Project {
             });
         }
     }
-    pub fn carve(&mut self, map: &str, cell: usize, linked: bool) {
+    pub fn carve(&mut self, map: &str, cell: usize) {
+        if cell >= SIZE * SIZE || !self.maps.contains_key(map) {
+            return;
+        }
         for dir in 0..4 {
-            self.paint(map, cell, dir, 0, linked);
+            let Some(adjacent) = neighbor(cell, dir) else {
+                continue;
+            };
+            // Solid cells keep their faces: those walls enclose the new tile.
+            // Only join an existing floor cell, never excavate its neighbors.
+            let join_floor = self.maps[map].walls[adjacent].contains(&0);
+            self.paint(map, cell, dir, 0, join_floor);
         }
     }
     pub fn set_field(&mut self, script: &str, index: usize, after: Value) -> Result<()> {
@@ -445,6 +473,59 @@ impl Project {
             .collect::<Result<Vec<_>>>()?;
         for index in fields {
             self.set_field(script, index, json!(destination))?;
+        }
+        Ok(())
+    }
+    pub fn set_event(
+        &mut self,
+        script: &str,
+        binding: usize,
+        event: Option<&crate::inf_script::Event>,
+    ) -> Result<()> {
+        let document = &self
+            .scripts
+            .get(script)
+            .context("level script missing")?
+            .value;
+        ensure!(
+            document["bindings"].get(binding).is_some(),
+            "script trigger missing"
+        );
+        let before = document.get("events").cloned();
+        let mut events = before.clone().unwrap_or_else(|| json!({}));
+        let key = binding.to_string();
+        if let Some(event) = event {
+            crate::inf_script::validate(event)?;
+            events[&key] = serde_json::to_value(event)?;
+        } else {
+            events
+                .as_object_mut()
+                .context("invalid event overrides")?
+                .remove(&key);
+        }
+        let after = if events
+            .as_object()
+            .context("invalid event overrides")?
+            .is_empty()
+        {
+            None
+        } else {
+            Some(events)
+        };
+        let mut candidate = document.clone();
+        if let Some(value) = &after {
+            candidate["events"] = value.clone();
+        } else {
+            candidate.as_object_mut().unwrap().remove("events");
+        }
+        // Validate storage and references before recording any undoable change.
+        crate::inf_script::compile(&candidate, crate::inf_script::bytes(&candidate)?)?;
+        if before != after {
+            self.change(Change::Events {
+                script: script.into(),
+                before,
+                after,
+            });
         }
         Ok(())
     }
@@ -735,6 +816,129 @@ mod tests {
         assert_eq!(p.dirty_count(), 1);
         p.redo();
         assert_eq!(p.dirty_count(), 0);
+        fs::remove_dir_all(path).unwrap();
+    }
+
+    #[test]
+    fn event_edits_undo_redo_save_and_snapshot_without_changing_original_code() {
+        let (mut project, path) = fixture();
+        fs::create_dir_all(path.join("raw")).unwrap();
+        let mut raw = vec![0u8; 96];
+        raw[0..2].copy_from_slice(&2u16.to_le_bytes());
+        raw[2..4].copy_from_slice(&74u16.to_le_bytes());
+        raw[5..15].copy_from_slice(b"level4.maz");
+        raw[18..24].copy_from_slice(b"forest");
+        raw[64..70].copy_from_slice(&[6, 0, 253, 65, 0, 241]);
+        raw[70..74].copy_from_slice(b"old\0");
+        for (offset, value) in [(74, 1u16), (76, 33), (78, 8), (80, 2)] {
+            raw[offset..offset + 2].copy_from_slice(&value.to_le_bytes());
+        }
+        fs::write(
+            path.join("raw/level4.inf"),
+            crate::cps::encode(&raw, &[]).unwrap(),
+        )
+        .unwrap();
+        let mut value = project.scripts["level4"].value.clone();
+        value["bytecode_start"] = json!(64);
+        value["bytes"] = json!(raw.chunks(16).collect::<Vec<_>>());
+        value["bindings"] = json!([{"block":33,"flags":8,"bytecode_offset":2}]);
+        assets::save_json(&path.join("scripts/level4.json"), &value).unwrap();
+        let document = project.scripts.get_mut("level4").unwrap();
+        document.saved = value.clone();
+        document.value = value.clone();
+        document.hash = assets::hash(&fs::read(path.join("scripts/level4.json")).unwrap());
+        let mut event = crate::inf_script::load(&value, 0).unwrap();
+        event.steps[0].bytes[1] = 66;
+        project.begin("Edit tile event");
+        project.set_event("level4", 0, Some(&event)).unwrap();
+        project.finish();
+        assert_eq!(project.dirty_count(), 1);
+        assert_eq!(project.history_len(), 1);
+        project.undo();
+        assert_eq!(project.scripts["level4"].value, value);
+        assert_eq!(project.dirty_count(), 0);
+        project.redo();
+        let edited = project.scripts["level4"].value.clone();
+        assert!(
+            project
+                .snapshot()
+                .documents
+                .iter()
+                .any(|(p, v)| p == &PathBuf::from("scripts/level4.json") && *v == edited)
+        );
+        assert_eq!(project.save().unwrap(), 1);
+        let reopened = Project::open(&path).unwrap();
+        assert_eq!(
+            crate::inf_script::load(&reopened.scripts["level4"].value, 0).unwrap(),
+            event
+        );
+        let encoded = crate::inf::encode(&edited, &raw).unwrap();
+        assert_eq!(&encoded[66..74], &raw[66..74]);
+        let directory = crate::cps::word(&encoded, 2).unwrap() as usize;
+        let entry = crate::cps::word(&encoded, directory + 6).unwrap() as usize;
+        assert_eq!(encoded[64 + entry + 1], 66);
+        let mut invalid = event.clone();
+        invalid.steps[0].bytes = vec![242, 255, 255];
+        assert!(project.set_event("level4", 0, Some(&invalid)).is_err());
+        assert_eq!(project.scripts["level4"].value, edited);
+        project.begin("Restore original tile event");
+        project.set_event("level4", 0, None).unwrap();
+        project.finish();
+        assert_eq!(project.scripts["level4"].value, value);
+        project.undo();
+        assert_eq!(project.scripts["level4"].value, edited);
+        fs::remove_dir_all(path).unwrap();
+    }
+    #[test]
+    fn carve_removes_only_one_tile_and_preserves_solid_neighbors() {
+        let (mut project, path) = fixture();
+        for cell in [33, 0, 31, 992, 1023] {
+            let before = project.maps["level4"].walls.clone();
+            let mut expected = before.clone();
+            for dir in 0..4 {
+                if neighbor(cell, dir).is_some() {
+                    expected[cell][dir] = 0;
+                }
+            }
+
+            project.begin("Carve");
+            project.carve("level4", cell);
+            project.finish();
+            assert_eq!(project.maps["level4"].walls, expected);
+            project.carve("level4", cell);
+            project.finish();
+            assert_eq!(project.maps["level4"].walls, expected);
+            assert_eq!(project.history_position(), 1);
+            project.undo();
+            assert_eq!(project.maps["level4"].walls, before);
+            assert_eq!(project.history_position(), 0);
+            project.redo();
+            assert_eq!(project.maps["level4"].walls, expected);
+            project.undo();
+        }
+        fs::remove_dir_all(path).unwrap();
+    }
+    #[test]
+    fn carve_joins_existing_floor_without_widening_the_passage() {
+        let (mut project, path) = fixture();
+        project.maps.get_mut("level4").unwrap().walls[33] = [5, 6, 0, 8];
+        let before = project.maps["level4"].walls.clone();
+        let mut expected = before.clone();
+        expected[33][1] = 0;
+        expected[34] = [0; 4];
+        expected[35] = [0; 4];
+        project.begin("Carve passage");
+        project.carve("level4", 34);
+        project.carve("level4", 35);
+        project.finish();
+        assert_eq!(project.maps["level4"].walls, expected);
+        assert_eq!(project.history_position(), 1);
+        project.undo();
+        assert_eq!(project.maps["level4"].walls, before);
+        project.redo();
+        assert_eq!(project.maps["level4"].walls, expected);
+        project.save().unwrap();
+        assert_eq!(Project::open(&path).unwrap().maps["level4"].walls, expected);
         fs::remove_dir_all(path).unwrap();
     }
     #[test]

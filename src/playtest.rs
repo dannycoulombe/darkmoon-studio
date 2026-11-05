@@ -120,6 +120,7 @@ pub fn prepare(snapshot: Snapshot, start: Start) -> Result<Prepared> {
     let save_path = game.join("eobdata0.sav");
     let mut save = fs::read(&save_path).context("playtests need the original quick-start party")?;
     patch_save(&mut save, start)?;
+    stock_test_party(&mut save).context("could not add playtest supplies")?;
     fs::write(exe_path, exe)?;
     fs::write(save_path, save)?;
     // The DOS loader requires LEVELS.TMP to exist even with no cached levels.
@@ -172,6 +173,49 @@ fn patch_save(save: &mut [u8], start: Start) -> Result<()> {
     Ok(())
 }
 
+fn stock_test_party(save: &mut [u8]) -> Result<()> {
+    // Original DOS save layout; see reference/saveload_eob.cpp. Inventory
+    // slots 2..16 are the backpack. Slot 16 is a linked ammunition queue.
+    const ITEMS: usize = 2182;
+    const ITEM_SIZE: usize = 14;
+    ensure!(save.len() == 46891, "unsupported quick-start save size");
+
+    // Quick-start party: Pericles, Stumpy, Wolfspirit, Laurann. Give each a
+    // class-appropriate spare weapon (+2), two extra-healing potions, and
+    // two iron rations, preserving equipped items and existing supplies.
+    for (character, weapon) in [34, 5, 26, 3].into_iter().enumerate() {
+        let base = 20 + character * 345;
+        ensure!(save[base + 1] & 1 != 0, "unsupported quick-start party");
+        let inventory = base + 221;
+        for (template, value) in [(weapon, 2), (24, 2), (24, 2), (10, 50), (10, 50)] {
+            let slot = (2..16)
+                .map(|slot| inventory + slot * 2)
+                .find(|&offset| save[offset..offset + 2] == [0, 0])
+                .context("quick-start backpack is full")?;
+            // block == -1 is the engine's free-record marker. Duplicate
+            // templates rather than moving items out of the dungeon.
+            let item = (1..600)
+                .find(|&item| {
+                    let offset = ITEMS + item * ITEM_SIZE + 6;
+                    save[offset..offset + 2] == [0xff, 0xff]
+                })
+                .context("quick-start item table is full")?;
+            let mut record = [0; ITEM_SIZE];
+            let source = ITEMS + template * ITEM_SIZE;
+            record.copy_from_slice(&save[source..source + ITEM_SIZE]);
+            record[2] |= if template == 10 { 0x40 } else { 0xc0 }; // identified
+            // Match the original party's loose inventory items: no world
+            // location or queue links, and level 0 so they never spawn on a map.
+            record[5..13].fill(0);
+            record[13] = value;
+            let destination = ITEMS + item * ITEM_SIZE;
+            save[destination..destination + ITEM_SIZE].copy_from_slice(&record);
+            save[slot..slot + 2].copy_from_slice(&(item as u16).to_le_bytes());
+        }
+    }
+    Ok(())
+}
+
 fn replace(exe: &mut [u8], offset: usize, before: &[u8], after: &[u8]) -> Result<()> {
     ensure!(
         before.len() == after.len() && exe.get(offset..offset + before.len()) == Some(before),
@@ -186,13 +230,9 @@ fn patch_boot(exe: &mut Vec<u8>) -> Result<()> {
         exe.len() == 333328 && exe.starts_with(b"MZ"),
         "unsupported DOS executable"
     );
-    // Skip logos, retaining the word the MZ loader relocates at this call site.
-    replace(
-        exe,
-        12800 + 0x8c50,
-        &[0x9a, 0x4d, 0, 0xdd, 0x2a],
-        &[0xe9, 2, 0, 0xdd, 0x2a],
-    )?;
+    // Keep the startup call at 0000:8c50 (2add:004d -> overlay 04c7).
+    // It initializes item and decoration shapes; skipping it leaves sprite
+    // pointers unset and corrupts the display when items are drawn.
     // Main menu's initial action: load game instead of playing the intro.
     replace(exe, 0x46760 + 0x93e, &[0xbe, 4, 0], &[0xbe, 1, 0])?;
     // Save/load overlay. Extend it by two paragraphs for a startup-only slot-0
@@ -247,6 +287,51 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "requires the extracted original game data"]
+    fn test_supplies_preserve_existing_inventory_and_world_items() {
+        let original = fs::read("assets/raw/eobdata0.sav").unwrap();
+        let mut save = original.clone();
+        stock_test_party(&mut save).unwrap();
+        let mut allowed = original.clone();
+        let mut added = std::collections::HashSet::new();
+        for (character, weapon_type) in [1, 2, 11, 13].into_iter().enumerate() {
+            let inventory = 20 + character * 345 + 221;
+            let mut kit = Vec::new();
+            for slot in 0..27 {
+                let offset = inventory + slot * 2;
+                let item = u16::from_le_bytes([save[offset], save[offset + 1]]) as usize;
+                if save[offset..offset + 2] == original[offset..offset + 2] {
+                    continue;
+                }
+                assert!((2..16).contains(&slot));
+                assert_eq!(&original[offset..offset + 2], &[0, 0]);
+                assert!(item > 0 && item < 600 && added.insert(item));
+                let record = 2182 + item * 14;
+                assert_eq!(&original[record + 6..record + 8], &[0xff, 0xff]);
+                assert_eq!(&save[record + 5..record + 13], &[0; 8]);
+                assert_ne!(save[record + 2] & 0x40, 0);
+                kit.push((save[record + 4], save[record + 13]));
+                allowed[offset..offset + 2].copy_from_slice(&save[offset..offset + 2]);
+                allowed[record..record + 14].copy_from_slice(&save[record..record + 14]);
+            }
+            assert_eq!(
+                kit,
+                [(weapon_type, 2), (39, 2), (39, 2), (31, 50), (31, 50)]
+            );
+        }
+        assert_eq!(added.len(), 20);
+        // No changes to any other character data, world item, party global,
+        // cached level, or unused item record.
+        assert_eq!(save, allowed);
+    }
+
+    #[test]
+    fn test_supplies_reject_unsupported_saves() {
+        assert!(stock_test_party(&mut []).is_err());
+        assert!(stock_test_party(&mut vec![0; 46891]).is_err());
+    }
+
+    #[test]
     fn save_only_changes_title_position_and_cache_flags() {
         let mut save: Vec<u8> = (0..46891).map(|i| (i % 251) as u8).collect();
         save[2090..2098].copy_from_slice(&[4, 0, 0, 0, 171, 0, 2, 0]);
@@ -284,10 +369,15 @@ mod tests {
 
     #[test]
     #[ignore = "requires the extracted original game data"]
-    fn boot_patch_keeps_relocations_and_later_overlays_intact() {
+    fn boot_patch_keeps_sprite_initialization_relocations_and_later_overlays_intact() {
         let original = fs::read("assets/raw/start.exe").unwrap();
         let mut patched = original.clone();
         patch_boot(&mut patched).unwrap();
+        // The original item/decorations initializer must run before autoload.
+        assert_eq!(
+            &patched[12800 + 0x8c50..12800 + 0x8c55],
+            &[0x9a, 0x4d, 0, 0xdd, 0x2a]
+        );
         assert_eq!(&patched[..12800], &original[..12800]);
         assert_eq!(&patched[0x4a4fb + 32..], &original[0x4a4fb..]);
         assert_eq!(patched.len(), original.len() + 32);
@@ -338,6 +428,12 @@ mod tests {
         let offset = field["offset"].as_u64().unwrap() as usize;
         assert_eq!(&decoded.data[offset..offset + 2], &203u16.to_le_bytes());
         assert!(prepared.game.join("LEVELS.TMP").is_file());
+        let save = fs::read(prepared.game.join("eobdata0.sav")).unwrap();
+        // Pericles' first empty backpack slot now holds the spare long sword.
+        let item = u16::from_le_bytes([save[257], save[258]]) as usize;
+        assert!(item > 0 && item < 600);
+        assert_eq!(save[2182 + item * 14 + 4], 1);
+        assert_eq!(save[2182 + item * 14 + 13], 2);
         assert_eq!(fs::read(&path).unwrap(), before);
         assert_eq!(fs::read(&script_path).unwrap(), script_before);
         assert_eq!(project.dirty_count(), dirty);

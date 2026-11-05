@@ -202,8 +202,7 @@ impl Editor {
                     self.selected_binding = members.first().copied();
                     self.tab = Tab::Cell;
                 }
-                // Entity selection is separate from the preview's cell. Locate
-                // is the explicit camera jump; a click never teleports it.
+                // Entity selection is separate from the preview's start point.
                 self.status = format!(
                     "Selected {} {} at {}, {}.",
                     members.len(),
